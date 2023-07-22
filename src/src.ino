@@ -51,10 +51,9 @@ void setup() {
   
   Serial.begin(115200);
 
-  homeSpan.setControlPin(21);
+//  homeSpan.setControlPin(21);  
+//  homeSpan.setLogLevel(2).setStatusPin(13);
   
-  homeSpan.setLogLevel(2)
-          .setStatusPin(13);
 //  homeSpan.setSerialInputDisable(true);
 //  homeSpan.enableOTA();
 

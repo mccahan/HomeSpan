@@ -61,8 +61,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
 
   SpanPoint::setAsHub();
 
-  statusLED=new Blinker(statusDevice,autoOffLED);             // create Status LED, even is statusDevice is NULL
-
   esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));       // required to avoid watchdog timeout messages from ESP32-C3
 
   if(requestedMaxCon<maxConnections)                          // if specific request for max connections is less than computed max connections
@@ -98,14 +96,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
                  "** Please ensure serial monitor is set to transmit <newlines>\n\n");
 
   LOG0("Message Logs:     Level %d",logLevel);
-  LOG0("\nStatus LED:       Pin ");
-  if(getStatusPin()>=0){
-    LOG0(getStatusPin());
-    if(autoOffLED>0)
-      LOG0("  (Auto Off=%d sec)",autoOffLED);
-  }
-  else
-    LOG0("-  *** WARNING: Status LED Pin is UNDEFINED");
   LOG0("\nDevice Control:   Pin ");
   if(getControlPin()>=0){
     LOG0(getControlPin());
@@ -186,10 +176,8 @@ void Span::pollTask() {
         processSerialCommand("A");
       } else {
         LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
-        STATUS_UPDATE(start(LED_WIFI_NEEDED),HS_WIFI_NEEDED)
       }
     } else {
-      STATUS_UPDATE(start(LED_WIFI_CONNECTING),HS_WIFI_CONNECTING)
     }
           
     if(controlButton)
@@ -286,20 +274,16 @@ void Span::pollTask() {
   if(spanOTA.enabled)
     ArduinoOTA.handle();
 
-  if(controlButton && controlButton->primed())
-    STATUS_UPDATE(start(LED_ALERT),HS_ENTERING_CONFIG_MODE)
+  if(controlButton && controlButton->primed()){};
   
   if(controlButton && controlButton->triggered(3000,10000)){
     if(controlButton->type()==PushButton::LONG){
-      STATUS_UPDATE(off(),HS_FACTORY_RESET)
       controlButton->wait();
       processSerialCommand("F");        // FACTORY RESET
     } else {
       commandMode();                    // COMMAND MODE
     }
   }
-
-  statusLED->check();
 
   vTaskDelay(5);
     
@@ -320,16 +304,10 @@ int Span::getFreeSlot(){
 //////////////////////////////////////
 
 void Span::commandMode(){
-
-  if(!statusDevice && !statusCallback){
-    LOG0("*** ERROR: CAN'T ENTER COMMAND MODE WITHOUT A DEFINED STATUS LED OR EVENT HANDLER CALLBACK***\n\n");
-    return;
-  }
   
   LOG0("*** COMMAND MODE ***\n\n");
   int mode=1;
   boolean done=false;
-  STATUS_UPDATE(start(500,0.3,mode,1000),static_cast<HS_STATUS>(HS_ENTERING_CONFIG_MODE+mode))
   unsigned long alarmTime=millis()+comModeLife;
 
   while(!done){
@@ -343,20 +321,17 @@ void Span::commandMode(){
         mode++;
         if(mode==6)
           mode=1;
-        STATUS_UPDATE(start(500,0.3,mode,1000),static_cast<HS_STATUS>(HS_ENTERING_CONFIG_MODE+mode))
       } else {
         done=true;
       }
     } // button press
   } // while
 
-  STATUS_UPDATE(start(LED_ALERT),static_cast<HS_STATUS>(HS_ENTERING_CONFIG_MODE+mode+5))
   controlButton->wait();
   
   switch(mode){
 
     case 1:
-      resetStatus();
     break;
 
     case 2:
@@ -392,7 +367,6 @@ void Span::checkConnect(){
     connected++;
     waitTime=60000;
     alarmConnect=0;
-    STATUS_UPDATE(start(LED_WIFI_CONNECTING),HS_WIFI_CONNECTING)
     }
 
   if(WiFi.status()!=WL_CONNECTED){
@@ -417,7 +391,6 @@ void Span::checkConnect(){
     return;
   }
 
-  resetStatus();  
   connected++;
 
   addWebLog(true,"WiFi Connected!  IP Address = %s",WiFi.localIP().toString().c_str());
@@ -703,7 +676,6 @@ void Span::processSerialCommand(const char *c){
       if(homeSpan.pairCallback)
         homeSpan.pairCallback(false);
 
-      resetStatus();      
     }
     break;
 
@@ -754,7 +726,6 @@ void Span::processSerialCommand(const char *c){
       }
       
       LOG0("\n*** Restarting...\n\n");
-      STATUS_UPDATE(start(LED_ALERT),HS_AP_TERMINATED)
       reboot();
     }
     break;
@@ -1148,21 +1119,7 @@ void Span::processSerialCommand(const char *c){
 
 ///////////////////////////////
 
-void Span::resetStatus(){
-  if(strlen(network.wifiData.ssid)==0)
-    STATUS_UPDATE(start(LED_WIFI_NEEDED),HS_WIFI_NEEDED)
-  else if(WiFi.status()!=WL_CONNECTED)
-    STATUS_UPDATE(start(LED_WIFI_CONNECTING),HS_WIFI_CONNECTING)
-  else if(!HAPClient::nAdminControllers())
-    STATUS_UPDATE(start(LED_PAIRING_NEEDED),HS_PAIRING_NEEDED)
-  else
-    STATUS_UPDATE(on(),HS_PAIRED)
-}
-
-///////////////////////////////
-
 void Span::reboot(){
-  STATUS_UPDATE(off(),HS_REBOOTING)
   delay(1000);
   ESP.restart();  
 }
@@ -2229,7 +2186,6 @@ void SpanOTA::start(){
   LOG0("\n*** Current Partition: %s\n*** New Partition: %s\n*** OTA Starting..",
     esp_ota_get_running_partition()->label,esp_ota_get_next_update_partition(NULL)->label);
   otaPercent=0;
-  STATUS_UPDATE(start(LED_OTA_STARTED),HS_OTA_STARTED)
 }
 
 ///////////////////////////////

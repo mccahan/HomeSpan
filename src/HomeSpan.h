@@ -43,8 +43,6 @@
 #include <esp_now.h>
 #include <mbedtls/base64.h>
 
-#include "extras/Blinker.h"
-#include "extras/Pixel.h"
 #include "Settings.h"
 #include "Utils.h"
 #include "Network.h"
@@ -68,8 +66,6 @@ enum {
 };
 
 ///////////////////////////////
-
-#define STATUS_UPDATE(LED_UPDATE,MESSAGE_UPDATE)  {homeSpan.statusLED->LED_UPDATE;if(homeSpan.statusCallback)homeSpan.statusCallback(MESSAGE_UPDATE);}
 
 enum HS_STATUS {
   HS_WIFI_NEEDED,                         // WiFi Credentials have not yet been set/stored
@@ -237,8 +233,6 @@ class Span{
   void (*statusCallback)(HS_STATUS status)=NULL;              // optional callback when HomeSpan status changes
   
   WiFiServer *hapServer;                            // pointer to the HAP Server connection
-  Blinker *statusLED;                               // indicates HomeSpan status
-  Blinkable *statusDevice = NULL;                   // the device used for the Blinker
   PushButton *controlButton = NULL;                 // controls HomeSpan configuration and resets
   Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
   SpanWebLog webLog;                                // optional web status/log
@@ -258,7 +252,6 @@ class Span{
   int getFreeSlot();                            // returns free HAPClient slot number. HAPClients slot keep track of each active HAPClient connection
   void checkConnect();                          // check WiFi connection; connect if needed
   void commandMode();                           // allows user to control and reset HomeSpan settings with the control button
-  void resetStatus();                           // resets statusLED and calls statusCallback based on current HomeSpan status
   void reboot();                                // reboots device
 
   int sprintfAttributes(char *cBuf, int flags=GET_VALUE|GET_META|GET_PERMS|GET_TYPE|GET_DESC);   // prints Attributes JSON database into buf, unless buf=NULL; return number of characters printed, excluding null terminator
@@ -292,18 +285,7 @@ class Span{
   boolean deleteAccessory(uint32_t aid);             // deletes Accessory with matching aid; returns true if found, else returns false 
 
   Span& setControlPin(uint8_t pin){controlButton=new PushButton(pin);return(*this);}     // sets Control Pin   
-  Span& setStatusPin(uint8_t pin){statusDevice=new GenericLED(pin);return(*this);}       // sets Status Device to a simple LED on specified pin
-  Span& setStatusAutoOff(uint16_t duration){autoOffLED=duration;return(*this);}          // sets Status LED auto off (seconds)  
-  int getStatusPin(){return(statusLED->getPin());}                                       // get Status Pin (getPin will return -1 if underlying statusDevice is undefined)
   int getControlPin(){return(controlButton?controlButton->getPin():-1);}                 // get Control Pin (returns -1 if undefined)
-  
-  Span& setStatusPixel(uint8_t pin,float h=0,float s=100,float v=100){     // sets Status Device to an RGB Pixel on specified pin
-    statusDevice=((new Pixel(pin))->setOnColor(Pixel::HSV(h,s,v)));
-    return(*this);
-  }
-
-  Span& setStatusDevice(Blinkable *sDev){statusDevice=sDev;return(*this);}
-  void refreshStatusDevice(){if(statusLED)statusLED->refresh();}
 
   Span& setApSSID(const char *ssid){network.apSSID=ssid;return(*this);}                  // sets Access Point SSID
   Span& setApPassword(const char *pwd){network.apPassword=pwd;return(*this);}            // sets Access Point Password
