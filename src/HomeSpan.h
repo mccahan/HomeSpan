@@ -98,7 +98,6 @@ struct SpanAccessory;
 struct SpanService;
 struct SpanCharacteristic;
 struct SpanBuf;
-struct SpanUserCommand;
 
 extern Span homeSpan;
 
@@ -131,7 +130,6 @@ class Span{
   friend class SpanAccessory;
   friend class SpanService;
   friend class SpanCharacteristic;
-  friend class SpanUserCommand;
   friend class Network;
   friend class HAPClient;
   
@@ -158,17 +156,13 @@ class Span{
   unsigned long alarmConnect=0;                 // time after which WiFi connection attempt should be tried again
   
   const char *defaultSetupCode=DEFAULT_SETUP_CODE;            // Setup Code used for pairing
-  uint16_t autoOffLED=0;                                      // automatic turn-off duration (in seconds) for Status LED
   int logLevel=DEFAULT_LOG_LEVEL;                             // level for writing out log messages to serial monitor
   uint8_t maxConnections=CONFIG_LWIP_MAX_SOCKETS-2;           // maximum number of allowed simultaneous HAP connections
-  uint8_t requestedMaxCon=CONFIG_LWIP_MAX_SOCKETS-2;          // requested maximum number of simultaneous HAP connections
   unsigned long comModeLife=DEFAULT_COMMAND_TIMEOUT*1000;     // length of time (in milliseconds) to keep Command Mode alive before resuming normal operations
   uint16_t tcpPortNum=DEFAULT_TCP_PORT;                       // port for TCP communications between HomeKit and HomeSpan
   char qrID[5]="";                                            // Setup ID used for pairing with QR Code
   void (*wifiCallback)()=NULL;                                // optional callback function to invoke once WiFi connectivity is established
   void (*pairCallback)(boolean isPaired)=NULL;                // optional callback function to invoke when pairing is established (true) or lost (false)
-  boolean autoStartAPEnabled=false;                           // enables auto start-up of Access Point when WiFi Credentials not found
-  void (*apFunction)()=NULL;                                  // optional function to invoke when starting Access Point
   void (*statusCallback)(HS_STATUS status)=NULL;              // optional callback when HomeSpan status changes
   
   WiFiServer *hapServer;                            // pointer to the HAP Server connection
@@ -181,8 +175,6 @@ class Span{
   vector<SpanBuf> Notifications;                    // vector of SpanBuf objects that store info for Characteristics that are updated with setVal() and require a Notification Event
   unordered_map<uint64_t, uint32_t> TimedWrites;    // map of timed-write PIDs and Alarm Times (based on TTLs)
   
-  unordered_map<char, SpanUserCommand *> UserCommands;           // map of pointers to all UserCommands
-
   void pollTask();                              // poll HAP Clients and process any new HAP requests
   int getFreeSlot();                            // returns free HAPClient slot number. HAPClients slot keep track of each active HAPClient connection
   void checkConnect();                          // check WiFi connection; connect if needed
@@ -234,9 +226,6 @@ class Span{
   const char *getSketchVersion(){return sketchVersion;}                                  // get sketch version number
   Span& setWifiCallback(void (*f)()){wifiCallback=f;return(*this);}                      // sets an optional user-defined function to call once WiFi connectivity is established
   Span& setPairCallback(void (*f)(boolean isPaired)){pairCallback=f;return(*this);}      // sets an optional user-defined function to call when Pairing is established (true) or lost (false)
-  Span& setApFunction(void (*f)()){apFunction=f;return(*this);}                          // sets an optional user-defined function to call when activating the WiFi Access Point  
-  Span& enableAutoStartAP(){autoStartAPEnabled=true;return(*this);}                      // enables auto start-up of Access Point when WiFi Credentials not found
-  Span& setWifiCredentials(const char *ssid, const char *pwd);                           // sets WiFi Credentials
   Span& setStatusCallback(void (*f)(HS_STATUS status)){statusCallback=f;return(*this);}  // sets an optional user-defined function to call when HomeSpan status changes
   const char* statusString(HS_STATUS s);                                                 // returns char string for HomeSpan status change messages
   
@@ -247,10 +236,7 @@ class Span{
     xTaskCreateUniversal([](void *parms){for(;;)homeSpan.pollTask();}, "pollTask", stackSize, NULL, priority, &pollTaskHandle, cpu);
     LOG0("\n*** AutoPolling Task started with priority=%d\n\n",uxTaskPriorityGet(pollTaskHandle)); 
   }
-
  
-  [[deprecated("Please use reserveSocketConnections(n) method instead.")]]
-  void setMaxConnections(uint8_t n){requestedMaxCon=n;}                   // sets maximum number of simultaneous HAP connections
 };
 
 ///////////////////////////////
@@ -686,23 +672,6 @@ class SpanCharacteristic{
     return(this);
   }  
 
-};
-
-///////////////////////////////
-
-class SpanUserCommand {
-
-  friend class Span;
-  
-  const char *s;                                            // description of command
-  void (*userFunction1)(const char *v)=NULL;                // user-defined function to call
-  void (*userFunction2)(const char *v, void *arg)=NULL;     // user-defined function to call with user-defined arg
-  void *userArg;
-
-  public:
-
-  SpanUserCommand(char c, const char *s, void (*f)(const char *));  
-  SpanUserCommand(char c, const char *s, void (*f)(const char *, void *), void *arg);  
 };
 
 /////////////////////////////////////////////////

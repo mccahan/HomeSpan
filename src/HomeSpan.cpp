@@ -55,9 +55,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   sprintf(this->category,"%d",(int)catID);
 
   esp_task_wdt_delete(xTaskGetIdleTaskHandleForCPU(0));       // required to avoid watchdog timeout messages from ESP32-C3
-
-  if(requestedMaxCon<maxConnections)                          // if specific request for max connections is less than computed max connections
-    maxConnections=requestedMaxCon;                           // over-ride max connections with requested value
     
   hap=(HAPClient **)calloc(maxConnections,sizeof(HAPClient *));
   for(int i=0;i<maxConnections;i++)
@@ -143,12 +140,7 @@ void Span::pollTask() {
 
     if(!strlen(network.wifiData.ssid)){
       LOG0("*** WIFI CREDENTIALS DATA NOT FOUND.  ");
-      if(autoStartAPEnabled){
-        LOG0("AUTO-START OF ACCESS POINT ENABLED...\n\n");
-        processSerialCommand("A");
-      } else {
-        LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
-      }
+      LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
     } else {
     }     
 
@@ -549,11 +541,6 @@ void Span::processSerialCommand(const char *c){
         MDNS.end();
         WiFi.disconnect();
       }
-
-      if(apFunction){
-        apFunction();
-        return;
-      }
       
       network.apConfigure();
       nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
@@ -883,30 +870,9 @@ void Span::processSerialCommand(const char *c){
       LOG0("\n");          
       LOG0("  L <level> - change the Log Level setting to <level>\n");
       LOG0("\n");
-
-      for(auto uCom=homeSpan.UserCommands.begin(); uCom!=homeSpan.UserCommands.end(); uCom++)      // loop over all UserCommands using an iterator
-        LOG0("  @%c %s\n",uCom->first,uCom->second->s);
-
-      if(!homeSpan.UserCommands.empty())
-        LOG0("\n");
         
       LOG0("  ? - print this list of commands\n\n");     
       LOG0("*** End Commands ***\n\n");
-    }
-    break;
-
-    case '@':{
-
-      auto uCom=UserCommands.find(c[1]);
-
-      if(uCom!=UserCommands.end()){
-        if(uCom->second->userFunction1)        
-          uCom->second->userFunction1(c+1);
-        else
-          uCom->second->userFunction2(c+1,uCom->second->userArg);
-      } else {
-        LOG0("*** Undefined user command: '%s'.  Type '?' for list of commands.\n",c);
-      }
     }
     break;
 
@@ -951,19 +917,6 @@ const char* Span::statusString(HS_STATUS s){
     case HS_OTA_STARTED: return("OTA Update Started");
     default: return("Unknown");
   }
-}
-
-///////////////////////////////
-
-Span& Span::setWifiCredentials(const char *ssid, const char *pwd){
-  sprintf(network.wifiData.ssid,"%.*s",MAX_SSID,ssid);
-  sprintf(network.wifiData.pwd,"%.*s",MAX_PWD,pwd);
-  if(wifiNVS){                                                                      // is begin() already called and wifiNVS is open
-    nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
-    nvs_commit(wifiNVS);                                                            // commit to NVS
-  }
-
-  return(*this);
 }
 
 ///////////////////////////////
@@ -1797,27 +1750,6 @@ SpanCharacteristic *SpanCharacteristic::setValidValues(int n, ...){
   strcpy(validValues,s.c_str());
 
   return(this);
-}
-
-///////////////////////////////
-//     SpanUserCommand       //
-///////////////////////////////
-
-SpanUserCommand::SpanUserCommand(char c, const char *s, void (*f)(const char *)){
-  this->s=s;
-  userFunction1=f;
-   
-  homeSpan.UserCommands[c]=this;
-}
-
-///////////////////////////////
-
-SpanUserCommand::SpanUserCommand(char c, const char *s, void (*f)(const char *, void *), void *arg){
-  this->s=s;
-  userFunction2=f;
-  userArg=arg;
-   
-  homeSpan.UserCommands[c]=this;
 }
 
 ///////////////////////////////
