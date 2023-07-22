@@ -135,12 +135,6 @@ void Network::apConfigure(){
 
   while(1){                                  // loop until we get timed out (which will be accelerated if save/cancel selected)
 
-    if(homeSpan.controlButton && homeSpan.controlButton->triggered(9999,3000)){
-      LOG0("\n*** Access Point Terminated.  Restarting...\n\n");
-      homeSpan.controlButton->wait();
-      homeSpan.reboot();
-    }
-
     if(millis()>alarmTimeOut){
       WiFi.softAPdisconnect(true);           // terminate connections and shut down captive access point
       delay(100);

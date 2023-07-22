@@ -96,13 +96,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
                  "** Please ensure serial monitor is set to transmit <newlines>\n\n");
 
   LOG0("Message Logs:     Level %d",logLevel);
-  LOG0("\nDevice Control:   Pin ");
-  if(getControlPin()>=0){
-    LOG0(getControlPin());
-  }
-  else{
-    LOG0("-  *** WARNING: Device Control Pin is UNDEFINED");
-  }
   LOG0("\nSketch Version:   %s",getSketchVersion());  
   LOG0("\nHomeSpan Version: %s",HOMESPAN_VERSION);
   LOG0("\nArduino-ESP Ver.: %s",ARDUINO_ESP_VERSION);
@@ -178,10 +171,7 @@ void Span::pollTask() {
         LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
       }
     } else {
-    }
-          
-    if(controlButton)
-      controlButton->reset();        
+    }     
 
     LOG0("%s is READY!\n\n",displayName);
     isInitialized=true;
@@ -271,17 +261,6 @@ void Span::pollTask() {
   if(spanOTA.enabled)
     ArduinoOTA.handle();
 
-  if(controlButton && controlButton->primed()){};
-  
-  if(controlButton && controlButton->triggered(3000,10000)){
-    if(controlButton->type()==PushButton::LONG){
-      controlButton->wait();
-      processSerialCommand("F");        // FACTORY RESET
-    } else {
-      commandMode();                    // COMMAND MODE
-    }
-  }
-
   vTaskDelay(5);
     
 } // poll
@@ -296,60 +275,6 @@ int Span::getFreeSlot(){
   }
 
   return(-1);          
-}
-
-//////////////////////////////////////
-
-void Span::commandMode(){
-  
-  LOG0("*** COMMAND MODE ***\n\n");
-  int mode=1;
-  boolean done=false;
-  unsigned long alarmTime=millis()+comModeLife;
-
-  while(!done){
-    if(millis()>alarmTime){
-      LOG0("*** Command Mode: Timed Out (%ld seconds)",comModeLife/1000);
-      mode=1;
-      done=true;
-    } else
-    if(controlButton->triggered(10,3000)){
-      if(controlButton->type()==PushButton::SINGLE){
-        mode++;
-        if(mode==6)
-          mode=1;
-      } else {
-        done=true;
-      }
-    } // button press
-  } // while
-
-  controlButton->wait();
-  
-  switch(mode){
-
-    case 1:
-    break;
-
-    case 2:
-      processSerialCommand("R");
-    break;    
-
-    case 3:
-      processSerialCommand("A");
-    break;
-      
-    case 4:
-      processSerialCommand("U");
-    break;    
-    
-    case 5:
-      processSerialCommand("X");
-    break;    
-    
-  } // switch
-  
-  LOG0("*** EXITING COMMAND MODE ***\n\n");
 }
 
 //////////////////////////////////////

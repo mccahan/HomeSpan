@@ -229,7 +229,6 @@ class Span{
   void (*statusCallback)(HS_STATUS status)=NULL;              // optional callback when HomeSpan status changes
   
   WiFiServer *hapServer;                            // pointer to the HAP Server connection
-  PushButton *controlButton = NULL;                 // controls HomeSpan configuration and resets
   Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
   SpanWebLog webLog;                                // optional web status/log
   TaskHandle_t pollTaskHandle = NULL;               // optional task handle to use for poll() function
@@ -246,7 +245,6 @@ class Span{
   void pollTask();                              // poll HAP Clients and process any new HAP requests
   int getFreeSlot();                            // returns free HAPClient slot number. HAPClients slot keep track of each active HAPClient connection
   void checkConnect();                          // check WiFi connection; connect if needed
-  void commandMode();                           // allows user to control and reset HomeSpan settings with the control button
   void reboot();                                // reboots device
 
   int sprintfAttributes(char *cBuf, int flags=GET_VALUE|GET_META|GET_PERMS|GET_TYPE|GET_DESC);   // prints Attributes JSON database into buf, unless buf=NULL; return number of characters printed, excluding null terminator
@@ -278,9 +276,6 @@ class Span{
   
   boolean updateDatabase(boolean updateMDNS=true);   // updates HAP Configuration Number and Loop vector; if updateMDNS=true and config number has changed, re-broadcasts MDNS 'c#' record; returns true if config number changed
   boolean deleteAccessory(uint32_t aid);             // deletes Accessory with matching aid; returns true if found, else returns false 
-
-  Span& setControlPin(uint8_t pin){controlButton=new PushButton(pin);return(*this);}     // sets Control Pin   
-  int getControlPin(){return(controlButton?controlButton->getPin():-1);}                 // get Control Pin (returns -1 if undefined)
 
   Span& setApSSID(const char *ssid){network.apSSID=ssid;return(*this);}                  // sets Access Point SSID
   Span& setApPassword(const char *pwd){network.apPassword=pwd;return(*this);}            // sets Access Point Password
