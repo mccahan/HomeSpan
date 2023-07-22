@@ -101,7 +101,6 @@ struct SpanService;
 struct SpanCharacteristic;
 struct SpanRange;
 struct SpanBuf;
-struct SpanButton;
 struct SpanUserCommand;
 
 extern Span homeSpan;
@@ -188,7 +187,6 @@ class Span{
   friend class SpanService;
   friend class SpanCharacteristic;
   friend class SpanUserCommand;
-  friend class SpanButton;
   friend class SpanRange;
   friend class SpanWebLog;
   friend class SpanOTA;
@@ -243,7 +241,6 @@ class Span{
   vector<SpanAccessory *> Accessories;              // vector of pointers to all Accessories
   vector<SpanService *> Loops;                      // vector of pointer to all Services that have over-ridden loop() methods
   vector<SpanBuf> Notifications;                    // vector of SpanBuf objects that store info for Characteristics that are updated with setVal() and require a Notification Event
-  vector<SpanButton *> PushButtons;                 // vector of pointer to all PushButtons
   unordered_map<uint64_t, uint32_t> TimedWrites;    // map of timed-write PIDs and Alarm Times (based on TTLs)
   
   unordered_map<char, SpanUserCommand *> UserCommands;           // map of pointers to all UserCommands
@@ -347,7 +344,6 @@ class SpanAccessory{
   friend class Span;
   friend class SpanService;
   friend class SpanCharacteristic;
-  friend class SpanButton;
   friend class SpanRange;
     
   uint32_t aid=0;                                         // Accessory Instance ID (HAP Table 6-1)
@@ -402,7 +398,6 @@ class SpanService{
 
   virtual boolean update() {return(true);}                // placeholder for code that is called when a Service is updated via a Controller.  Must return true/false depending on success of update
   virtual void loop(){}                                   // loops for each Service - called every cycle if over-ridden with user-defined code
-  virtual void button(int pin, int pressType){}           // method called for a Service when a button attached to "pin" has a Single, Double, or Long Press, according to pressType
 };
 
 ///////////////////////////////
@@ -783,55 +778,6 @@ class SpanCharacteristic{
 
 struct [[deprecated("Please use Characteristic::setRange() method instead.")]] SpanRange{
   SpanRange(int min, int max, int step);
-};
-
-///////////////////////////////
-
-class SpanButton : public PushButton {
-
-  friend class Span;
-  friend class SpanService;
-   
-  uint16_t singleTime;           // minimum time (in millis) required to register a single press
-  uint16_t longTime;             // minimum time (in millis) required to register a long press
-  uint16_t doubleTime;           // maximum time (in millis) between single presses to register a double press instead
-  SpanService *service;          // Service to which this PushButton is attached  
-  
-  void check();                  // check PushButton and call button() if "pressed"
-
-  protected:
-  
-  enum buttonType_t {
-    HS_BUTTON,
-    HS_TOGGLE
-  };
-
-  buttonType_t buttonType=HS_BUTTON;      // type of SpanButton  
-  
-  public:
-
-  static constexpr triggerType_t TRIGGER_ON_LOW=PushButton::TRIGGER_ON_LOW;
-  static constexpr triggerType_t TRIGGER_ON_HIGH=PushButton::TRIGGER_ON_HIGH;
-
-#if SOC_TOUCH_SENSOR_NUM > 0  
-  static constexpr triggerType_t TRIGGER_ON_TOUCH=PushButton::TRIGGER_ON_TOUCH;
-  static void setTouchCycles(uint16_t measureTime, uint16_t sleepTime){PushButton::setTouchCycles(measureTime,sleepTime);}
-  static void setTouchThreshold(touch_value_t thresh){PushButton::setTouchThreshold(thresh);}
-#endif
-  
-  SpanButton(int pin, uint16_t longTime=2000, uint16_t singleTime=5, uint16_t doubleTime=200, triggerType_t triggerType=TRIGGER_ON_LOW);
-  SpanButton(int pin, triggerType_t triggerType, uint16_t longTime=2000, uint16_t singleTime=5, uint16_t doubleTime=200) : SpanButton(pin,longTime,singleTime,doubleTime,triggerType){};
-
-};
-
-///////////////////////////////
-
-class SpanToggle : public SpanButton {
-
-  public:
-
-  SpanToggle(int pin, triggerType_t triggerType=TRIGGER_ON_LOW, uint16_t toggleTime=5) : SpanButton(pin,triggerType,toggleTime){buttonType=HS_TOGGLE;};
-  int position(){return(pressType);}
 };
 
 ///////////////////////////////

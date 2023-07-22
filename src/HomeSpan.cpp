@@ -264,10 +264,7 @@ void Span::pollTask() {
   
   for(auto it=Loops.begin();it!=Loops.end();it++)                 // call loop() for all Services with over-ridden loop() methods
     (*it)->loop();                           
-
-  for(auto it=PushButtons.begin();it!=PushButtons.end();it++)     // check for SpanButton presses
-    (*it)->check();
-    
+   
   HAPClient::checkNotifications();  
   HAPClient::checkTimedWrites();
 
@@ -897,31 +894,6 @@ void Span::processSerialCommand(const char *c){
             if(hapChar.find(*req)==hapChar.end())
               LOG0("          *** WARNING #%d!  Required '%s' Characteristic for this Service not found ***\n",++nWarnings,(*req)->hapName);
           }
-
-          for(auto button=PushButtons.begin(); button!=PushButtons.end(); button++){
-            if((*button)->service==(*svc)){
-              
-              if((*button)->buttonType==SpanButton::HS_BUTTON)
-                LOG0("      \u25bc SpanButton: Pin=%d, Single=%ums, Double=%ums, Long=%ums, Type=",(*button)->pin,(*button)->singleTime,(*button)->doubleTime,(*button)->longTime);
-              else
-                LOG0("      \u25bc SpanToggle: Pin=%d, Toggle=%ums, Type=",(*button)->pin,(*button)->longTime);
-                
-              if((*button)->triggerType==PushButton::TRIGGER_ON_LOW)
-                LOG0("TRIGGER_ON_LOW\n");
-              else if((*button)->triggerType==PushButton::TRIGGER_ON_HIGH)
-                LOG0("TRIGGER_ON_HIGH\n");
-
-#if SOC_TOUCH_SENSOR_NUM > 0
-              else if((*button)->triggerType==PushButton::TRIGGER_ON_TOUCH)
-                LOG0("TRIGGER_ON_TOUCH\n");
-#endif
-              else
-                LOG0("USER-DEFINED\n");
-              
-              if((void(*)(int,int))((*svc)->*(&SpanService::button))==(void(*)(int,int))(&SpanService::button))
-                LOG0("          *** WARNING #%d!  No button() method defined in this Service ***\n",++nWarnings);
-            }
-          }
           
         } // Services
         
@@ -936,15 +908,14 @@ void Span::processSerialCommand(const char *c){
       LOG0("\nDatabase Validation:  Warnings=%d, Errors=%d\n\n",nWarnings,nErrors);    
 
       char d[]="------------------------------";
-      LOG0("%-30s  %8s  %10s  %s  %s  %s  %s  %s\n","Service","UUID","AID","IID","Update","Loop","Button","Linked Services");
-      LOG0("%.30s  %.8s  %.10s  %.3s  %.6s  %.4s  %.6s  %.15s\n",d,d,d,d,d,d,d,d);
+      LOG0("%-30s  %8s  %10s  %s  %s  %s  %s\n","Service","UUID","AID","IID","Update","Loop","Linked Services");
+      LOG0("%.30s  %.8s  %.10s  %.3s  %.6s  %.4s  %.15s\n",d,d,d,d,d,d,d);
       for(int i=0;i<Accessories.size();i++){                             // identify all services with over-ridden loop() methods
         for(int j=0;j<Accessories[i]->Services.size();j++){
           SpanService *s=Accessories[i]->Services[j];
-          LOG0("%-30s  %8.8s  %10u  %3d  %6s  %4s  %6s  ",s->hapName,s->type,Accessories[i]->aid,s->iid, 
+          LOG0("%-30s  %8.8s  %10u  %3d  %6s  %4s  ",s->hapName,s->type,Accessories[i]->aid,s->iid, 
                  (void(*)())(s->*(&SpanService::update))!=(void(*)())(&SpanService::update)?"YES":"NO",
-                 (void(*)())(s->*(&SpanService::loop))!=(void(*)())(&SpanService::loop)?"YES":"NO",
-                 (void(*)(int,boolean))(s->*(&SpanService::button))!=(void(*)(int,boolean))(&SpanService::button)?"YES":"NO"
+                 (void(*)())(s->*(&SpanService::loop))!=(void(*)())(&SpanService::loop)?"YES":"NO"
                  );
           if(s->linkedServices.empty())
             LOG0("-");
@@ -1665,17 +1636,6 @@ SpanService::~SpanService(){
     homeSpan.Loops.erase(svc);
     LOG1("Deleted Loop Entry\n");
   }
-
-  auto pb=homeSpan.PushButtons.begin();         // loop through PushButton vector and delete ALL PushButtons associated with this Service
-  while(pb!=homeSpan.PushButtons.end()){
-    if((*pb)->service==this){
-      pb=homeSpan.PushButtons.erase(pb);
-      LOG1("Deleted PushButton on Pin=%d\n",(*pb)->pin);
-    }
-    else {
-      pb++;
-    }
-  }
   
   LOG1("Deleted Service AID=%d IID=%d\n",accessory->aid,iid); 
 }
@@ -2023,39 +1983,6 @@ SpanRange::SpanRange(int min, int max, int step){
   } else {
     homeSpan.Accessories.back()->Services.back()->Characteristics.back()->setRange(min,max,step);
   }
-}
-
-///////////////////////////////
-//        SpanButton         //
-///////////////////////////////
-
-SpanButton::SpanButton(int pin, uint16_t longTime, uint16_t singleTime, uint16_t doubleTime, triggerType_t triggerType) : PushButton(pin, triggerType){
-
-  if(homeSpan.Accessories.empty() || homeSpan.Accessories.back()->Services.empty()){
-    if(buttonType==HS_BUTTON)
-      LOG0("\nFATAL ERROR!  Can't create new SpanButton(%d,%u,%u,%u) without a defined Service ***\n",pin,longTime,singleTime,doubleTime);
-    else
-      LOG0("\nFATAL ERROR!  Can't create new SpanToggle(%d,%u) without a defined Service ***\n",pin,longTime);
-      
-    LOG0("\n=== PROGRAM HALTED ===");
-    while(1);
-  }
-
-  this->longTime=longTime;
-  this->singleTime=singleTime;
-  this->doubleTime=doubleTime;
-  service=homeSpan.Accessories.back()->Services.back();
-
-  homeSpan.PushButtons.push_back(this);
-}
-
-///////////////////////////////
-
-void SpanButton::check(){
-
-  if( (buttonType==HS_BUTTON && triggered(singleTime,longTime,doubleTime)) ||
-      (buttonType==HS_TOGGLE && toggled(longTime)) )                             // if the underlying PushButton is triggered/toggled
-    service->button(pin,type());                                              // call the Service's button() routine with pin and type as parameters    
 }
 
 ///////////////////////////////
