@@ -40,8 +40,6 @@
 #include "HomeSpan.h"
 #include "HAP.h"
 
-const __attribute__((section(".rodata_custom_desc"))) SpanPartition spanPartition = {HOMESPAN_MAGIC_COOKIE,0};
-
 using namespace Utils;
 
 HAPClient **hap;                    // HAP Client structure containing HTTP client connections, parsing routines, and state variables (global-scoped variable)
@@ -73,7 +71,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   nvs_flash_init();                             // initialize non-volatile-storage partition in flash  
   nvs_open("CHAR",NVS_READWRITE,&charNVS);      // open Characteristic data namespace in NVS
   nvs_open("WIFI",NVS_READWRITE,&wifiNVS);      // open WIFI data namespace in NVS
-  nvs_open("OTA",NVS_READWRITE,&otaNVS);        // open OTA data namespace in NVS
 
   size_t len;
 
@@ -120,15 +117,6 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   
   LOG0("\n\nDevice Name:      %s\n\n",displayName);
 
-  uint8_t otaRequired=0;
-  nvs_get_u8(otaNVS,"OTA_REQUIRED",&otaRequired);
-  nvs_set_u8(otaNVS,"OTA_REQUIRED",0);
-  nvs_commit(otaNVS);
-  if(otaRequired && !spanOTA.enabled){
-    LOG0("\n\n*** OTA SAFE MODE ALERT:  OTA REQUIRED BUT NOT ENABLED.  ROLLING BACK TO PREVIOUS APPLICATION ***\n\n");
-    delay(100);
-    esp_ota_mark_app_invalid_rollback_and_reboot();
-  }
   
 }  // begin
 
@@ -255,9 +243,6 @@ void Span::pollTask() {
    
   HAPClient::checkNotifications();  
   HAPClient::checkTimedWrites();
-
-  if(spanOTA.enabled)
-    ArduinoOTA.handle();
 
   vTaskDelay(5);
     
@@ -392,22 +377,7 @@ void Span::checkConnect(){
   mbedtls_sha512_ret(hashInput,21,hashOutput,0);                      // Step 2: Perform SHA-512 hash on combined 21-byte hashInput to create 64-byte hashOutput
   mbedtls_base64_encode((uint8_t *)setupHash,9,&len,hashOutput,4);    // Step 3: Encode the first 4 bytes of hashOutput in base64, which results in an 8-character, null-terminated, setupHash
   mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
-
-  if(spanOTA.enabled){
-    ArduinoOTA.setHostname(hostName);
-
-    if(spanOTA.auth)
-      ArduinoOTA.setPasswordHash(spanOTA.otaPwd);
-
-    ArduinoOTA.onStart(spanOTA.start).onEnd(spanOTA.end).onProgress(spanOTA.progress).onError(spanOTA.error);  
-    
-    ArduinoOTA.begin();
-    LOG0("Starting OTA Server:    %s at %s\n",displayName,WiFi.localIP().toString().c_str());
-    LOG0("Authorization Password: %s",spanOTA.auth?"Enabled\n\n":"DISABLED!\n\n");
-  }
   
-  mdns_service_txt_item_set("_hap","_tcp","ota",spanOTA.enabled?"yes":"no");                     // OTA status (info only - NOT used by HAP)
-
   if(webLog.isEnabled){
     mdns_service_txt_item_set("_hap","_tcp","logURL",webLog.statusURL.c_str()+4);           // Web Log status (info only - NOT used by HAP)
     
@@ -513,35 +483,6 @@ void Span::processSerialCommand(const char *c){
       } else {
         LOG0("\n*** Invalid request to change Setup ID for QR Code to: '%s'.  Setup ID must be exactly 4 alphanumeric characters (0-9, A-Z, and a-z).\n\n",s);
       }        
-    }
-    break;
-    
-    case 'O': {
-
-      char textPwd[34]="\0";
-      
-      LOG0("\n>>> New OTA Password, or <return> to cancel request: ");
-      readSerial(textPwd,33);
-      
-      if(strlen(textPwd)==0){
-        LOG0("(cancelled)\n\n");
-        return;
-      }
-
-      if(strlen(textPwd)==33){
-        LOG0("\n*** Sorry, 32 character limit - request cancelled\n\n");
-        return;
-      }
-      
-      LOG0("%s\n",mask(textPwd,2).c_str());
-      spanOTA.setPassword(textPwd);
-      nvs_set_str(otaNVS,"OTADATA",spanOTA.otaPwd);                 // update data
-      nvs_commit(otaNVS);          
-      
-      LOG0("... Accepted! Password change will take effect after next restart.\n");
-      if(!spanOTA.enabled)
-        LOG0("... Note: OTA has not been enabled in this sketch.\n");
-      LOG0("\n");
     }
     break;
 
@@ -691,8 +632,6 @@ void Span::processSerialCommand(const char *c){
       nvs_commit(wifiNVS);   
       nvs_erase_all(charNVS);
       nvs_commit(charNVS);
-      nvs_erase_all(otaNVS);
-      nvs_commit(otaNVS);
       WiFi.begin("none");  
       LOG0("\n*** FACTORY RESET!  Restarting...\n\n");
       reboot();
@@ -1965,94 +1904,6 @@ void SpanWebLog::vLog(boolean sysMsg, const char *fmt, va_list ap){
 
   free(buf);
 }
-
-///////////////////////////////
-//         SpanOTA           //
-///////////////////////////////
-
-int SpanOTA::init(boolean _auth, boolean _safeLoad, const char *pwd){
-  if(esp_ota_get_running_partition()==esp_ota_get_next_update_partition(NULL)){
-    LOG0("\n*** WARNING: Can't start OTA Server - Partition table used to compile this sketch is not configured for OTA.\n\n");
-    return(-1);     
-  }
-  
-  enabled=true;
-  safeLoad=_safeLoad;
-  auth=_auth;
-  homeSpan.reserveSocketConnections(1);
-  if(pwd==NULL)
-    return(0);
-  return(setPassword(pwd));
-}
-
-///////////////////////////////
-
-int SpanOTA::setPassword(const char *pwd){
-  if(strlen(pwd)<1 || strlen(pwd)>32){
-    LOG0("\n*** WARNING: Cannot change OTA password to '%s'. Password length must be between 1 and 32 characters.\n\n",pwd);
-    return(-1);
-  }
-
-  MD5Builder otaPwdHash;
-  otaPwdHash.begin();
-  otaPwdHash.add(pwd);
-  otaPwdHash.calculate();
-  otaPwdHash.getChars(homeSpan.spanOTA.otaPwd);  
-  return(0);
-}
-
-///////////////////////////////
-
-void SpanOTA::start(){
-  LOG0("\n*** Current Partition: %s\n*** New Partition: %s\n*** OTA Starting..",
-    esp_ota_get_running_partition()->label,esp_ota_get_next_update_partition(NULL)->label);
-  otaPercent=0;
-}
-
-///////////////////////////////
-
-void SpanOTA::end(){
-  nvs_set_u8(homeSpan.otaNVS,"OTA_REQUIRED",safeLoad);
-  nvs_commit(homeSpan.otaNVS);
-  LOG0(" DONE!  Rebooting...\n");
-  homeSpan.reboot();
-}
-
-///////////////////////////////
-
-void SpanOTA::progress(uint32_t progress, uint32_t total){
-  int percent=progress*100/total;
-  if(percent/10 != otaPercent/10){
-    otaPercent=percent;
-    LOG0("%d%%..",progress*100/total);
-  }
-
-  if(safeLoad && progress==total){
-    SpanPartition newSpanPartition;   
-    esp_partition_read(esp_ota_get_next_update_partition(NULL), sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t), &newSpanPartition, sizeof(newSpanPartition));
-    LOG0("Checking for HomeSpan Magic Cookie: %s..",newSpanPartition.magicCookie);
-    if(strcmp(newSpanPartition.magicCookie,spanPartition.magicCookie))
-      Update.abort();
-  }
-}
-
-///////////////////////////////
-
-void SpanOTA::error(ota_error_t err){
-  LOG0("*** OTA Error[%u]: ", err);
-  if (err == OTA_AUTH_ERROR) LOG0("Auth Failed\n\n");
-    else if (err == OTA_BEGIN_ERROR) LOG0("Begin Failed\n\n");
-    else if (err == OTA_CONNECT_ERROR) LOG0("Connect Failed\n\n");
-    else if (err == OTA_RECEIVE_ERROR) LOG0("Receive Failed\n\n");
-    else if (err == OTA_END_ERROR) LOG0("End Failed\n\n");
-}
-
-///////////////////////////////
-
-int SpanOTA::otaPercent;
-boolean SpanOTA::safeLoad;
-boolean SpanOTA::enabled=false;
-boolean SpanOTA::auth;
 
 ///////////////////////////////
 //          MISC             //
