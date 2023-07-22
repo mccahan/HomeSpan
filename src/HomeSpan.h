@@ -122,32 +122,6 @@ struct SpanBuf{                               // temporary storage buffer for us
   SpanCharacteristic *characteristic=NULL;    // Characteristic to update (NULL if not found)
 };
   
-///////////////////////////////
-
-struct SpanWebLog{                            // optional web status/log data
-  boolean isEnabled=false;                    // flag to inidicate WebLog has been enabled
-  uint16_t maxEntries=0;                      // max number of log entries;
-  int nEntries=0;                             // total cumulative number of log entries
-  const char *timeServer;                     // optional time server to use for acquiring clock time
-  const char *timeZone;                       // optional time-zone specification
-  boolean timeInit=false;                     // flag to indicate time has been initialized
-  char bootTime[33]="Unknown";                // boot time
-  String statusURL;                           // URL of status log
-  uint32_t waitTime=120000;                   // number of milliseconds to wait for initial connection to time server
-  String css="";                              // optional user-defined style sheet for web log
-    
-  struct log_t {                              // log entry type
-    uint64_t upTime;                          // number of seconds since booting
-    struct tm clockTime;                      // clock time
-    char *message;                            // pointers to log entries of arbitrary size
-    String clientIP;                          // IP address of client making request (or "0.0.0.0" if not applicable)
-  } *log=NULL;                                // array of log entries 
-
-  void init(uint16_t maxEntries, const char *serv, const char *tz, const char *url);
-  static void initTime(void *args);  
-  void vLog(boolean sysMsg, const char *fmr, va_list ap);
-};
-
 //////////////////////////////////////
 //   USER API CLASSES BEGINS HERE   //
 //////////////////////////////////////
@@ -158,7 +132,6 @@ class Span{
   friend class SpanService;
   friend class SpanCharacteristic;
   friend class SpanUserCommand;
-  friend class SpanWebLog;
   friend class Network;
   friend class HAPClient;
   
@@ -200,7 +173,6 @@ class Span{
   
   WiFiServer *hapServer;                            // pointer to the HAP Server connection
   Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
-  SpanWebLog webLog;                                // optional web status/log
   TaskHandle_t pollTaskHandle = NULL;               // optional task handle to use for poll() function
     
   SpanConfig hapConfig;                             // track configuration changes to the HAP Accessory database; used to increment the configuration number (c#) when changes found
@@ -271,26 +243,11 @@ class Span{
   Span& setPairingCode(const char *s){sprintf(pairingCodeCommand,"S %9s",s);return(*this);}    // sets the Pairing Code - use is NOT recommended.  Use 'S' from CLI instead
   void deleteStoredValues(){processSerialCommand("V");}                                        // deletes stored Characteristic values from NVS  
 
-  Span& enableWebLog(uint16_t maxEntries=0, const char *serv=NULL, const char *tz="UTC", const char *url=DEFAULT_WEBLOG_URL){     // enable Web Logging
-    webLog.init(maxEntries, serv, tz, url);
-    return(*this);
-  }
-
-  void addWebLog(boolean sysMsg, const char *fmt, ...){               // add Web Log entry
-    va_list ap;
-    va_start(ap,fmt);
-    webLog.vLog(sysMsg,fmt,ap);
-    va_end(ap);    
-  }
-
-  Span& setWebLogCSS(const char *css){webLog.css="\n" + String(css) + "\n";return(*this);}
-
   void autoPoll(uint32_t stackSize=8192, uint32_t priority=1, uint32_t cpu=0){     // start pollTask()
     xTaskCreateUniversal([](void *parms){for(;;)homeSpan.pollTask();}, "pollTask", stackSize, NULL, priority, &pollTaskHandle, cpu);
     LOG0("\n*** AutoPolling Task started with priority=%d\n\n",uxTaskPriorityGet(pollTaskHandle)); 
   }
 
-  Span& setTimeServerTimeout(uint32_t tSec){webLog.waitTime=tSec*1000;return(*this);}    // sets wait time (in seconds) for optional web log time server to connect
  
   [[deprecated("Please use reserveSocketConnections(n) method instead.")]]
   void setMaxConnections(uint8_t n){requestedMaxCon=n;}                   // sets maximum number of simultaneous HAP connections

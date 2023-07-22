@@ -107,8 +107,6 @@
 #define LOG0(format,...) do{ if(homeSpan.getLogLevel()>=0)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
 #define LOG1(format,...) do{ if(homeSpan.getLogLevel()>=1)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
 #define LOG2(format,...) do{ if(homeSpan.getLogLevel()>=2)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
-
-#define WEBLOG(format,...) homeSpan.addWebLog(false, format __VA_OPT__(,) __VA_ARGS__);
    
 //////////////////////////////////////////////////////
 //   Types of Accessory Categories                  //
