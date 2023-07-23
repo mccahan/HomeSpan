@@ -40,7 +40,7 @@
 #include <unordered_set>
 #include <nvs.h>
 #include <mbedtls/base64.h>
-#include <WiFi.h>
+#include <WiFiServer.h>
 
 #include "Settings.h"
 #include "Utils.h"
