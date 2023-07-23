@@ -32,7 +32,6 @@
 #include <mbedtls/version.h>
 #include <mbedtls/sha256.h>
 #include <esp_task_wdt.h>
-#include <esp_wifi.h>
 
 #include "HomeSpan.h"
 #include "HAP.h"
@@ -107,6 +106,98 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   
   LOG0("\n\nDevice Name:      %s\n\n",displayName);
 
+
+    HAPClient::init();                // read NVS and load HAP settings
+
+    esp_event_loop_create_default();          // THIS IS REQUIRED TO ALLOW INITIALIZATION OF MDNS WITHOUTH FIRST STARTING WIFI
+  
+    char id[18];                              // create string version of Accessory ID for MDNS broadcast
+    memcpy(id,HAPClient::accessory.ID,17);    // copy ID bytes
+    id[17]='\0';                              // add terminating null
+  
+    // create broadcaset name from server base name plus accessory ID (without ':')
+  
+    int nChars;
+  
+    if(!hostNameSuffix)
+      nChars=snprintf(NULL,0,"%s-%.2s%.2s%.2s%.2s%.2s%.2s",hostNameBase,id,id+3,id+6,id+9,id+12,id+15);
+    else
+      nChars=snprintf(NULL,0,"%s%s",hostNameBase,hostNameSuffix);
+      
+    char hostName[nChars+1];
+    
+    if(!hostNameSuffix)
+      sprintf(hostName,"%s-%.2s%.2s%.2s%.2s%.2s%.2s",hostNameBase,id,id+3,id+6,id+9,id+12,id+15);
+    else
+      sprintf(hostName,"%s%s",hostNameBase,hostNameSuffix);
+  
+    char d[strlen(hostName)+1];  
+    sscanf(hostName,"%[A-Za-z0-9-]",d);
+    
+    if(strlen(hostName)>255|| hostName[0]=='-' || hostName[strlen(hostName)-1]=='-' || strlen(hostName)!=strlen(d)){
+      LOG0("\n*** Error:  Can't start MDNS due to invalid hostname '%s'.\n",hostName);
+      LOG0("*** Hostname must consist of 255 or less alphanumeric characters or a hyphen, except that the hyphen cannot be the first or last character.\n");
+      LOG0("*** PROGRAM HALTED!\n\n");
+      while(1);
+    }
+      
+    LOG0("\nStarting MDNS...\n\n");
+    LOG0("HostName:      %s.local:%d\n",hostName,tcpPortNum);
+    LOG0("Display Name:  %s\n",displayName);
+    LOG0("Model Name:    %s\n",modelName);
+    LOG0("Setup ID:      %s\n\n",qrID);
+    
+    MDNS.begin(hostName);                         // set server host name (.local implied)
+    MDNS.setInstanceName(displayName);            // set server display name
+    MDNS.addService("_hap","_tcp",tcpPortNum);    // advertise HAP service on specified port
+  
+    // add MDNS (Bonjour) TXT records for configurable as well as fixed values (HAP Table 6-7)
+  
+    char cNum[16];
+    sprintf(cNum,"%d",hapConfig.configNumber);
+    
+    mdns_service_txt_item_set("_hap","_tcp","c#",cNum);            // Accessory Current Configuration Number (updated whenever config of HAP Accessory Attribute Database is updated)
+    mdns_service_txt_item_set("_hap","_tcp","md",modelName);       // Accessory Model Name
+    mdns_service_txt_item_set("_hap","_tcp","ci",category);        // Accessory Category (HAP Section 13.1)
+    mdns_service_txt_item_set("_hap","_tcp","id",id);              // string version of Accessory ID in form XX:XX:XX:XX:XX:XX (HAP Section 5.4)
+  
+    mdns_service_txt_item_set("_hap","_tcp","ff","0");             // HAP Pairing Feature flags.  MUST be "0" to specify Pair Setup method (HAP Table 5-3) without MiFi Authentification
+    mdns_service_txt_item_set("_hap","_tcp","pv","1.1");           // HAP version - MUST be set to "1.1" (HAP Section 6.6.3)
+    mdns_service_txt_item_set("_hap","_tcp","s#","1");             // HAP current state - MUST be set to "1"
+  
+    if(!HAPClient::nAdminControllers())                            // Accessory is not yet paired
+      mdns_service_txt_item_set("_hap","_tcp","sf","1");           // set Status Flag = 1 (Table 6-8)
+    else
+      mdns_service_txt_item_set("_hap","_tcp","sf","0");           // set Status Flag = 0
+  
+    mdns_service_txt_item_set("_hap","_tcp","hspn",HOMESPAN_VERSION);             // HomeSpan Version Number (info only - NOT used by HAP)
+    mdns_service_txt_item_set("_hap","_tcp","ard-esp32",ARDUINO_ESP_VERSION);     // Arduino-ESP32 Version Number (info only - NOT used by HAP)
+    mdns_service_txt_item_set("_hap","_tcp","board",ARDUINO_VARIANT);             // Board Name (info only - NOT used by HAP)
+    mdns_service_txt_item_set("_hap","_tcp","sketch",sketchVersion);              // Sketch Version (info only - NOT used by HAP)
+  
+    uint8_t hashInput[22];
+    uint8_t hashOutput[64];
+    char setupHash[9];
+    
+    memcpy(hashInput,qrID,4);                                           // Create the Seup ID for use with optional QR Codes.  This is an undocumented feature of HAP R2!
+    memcpy(hashInput+4,id,17);                                          // Step 1: Concatenate 4-character Setup ID and 17-character Accessory ID into hashInput
+    mbedtls_sha512_ret(hashInput,21,hashOutput,0);                      // Step 2: Perform SHA-512 hash on combined 21-byte hashInput to create 64-byte hashOutput
+    mbedtls_base64_encode((uint8_t *)setupHash,9,&len,hashOutput,4);    // Step 3: Encode the first 4 bytes of hashOutput in base64, which results in an 8-character, null-terminated, setupHash
+    mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
+
+    if(!strlen(network.wifiData.ssid)){
+      LOG0("*** WIFI CREDENTIALS DATA NOT FOUND.  ");
+      LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
+    } else {
+    }     
+
+    LOG0("%s is READY!\n\n",displayName);
+
+
+
+
+  
+
   
 }  // begin
 
@@ -131,23 +222,6 @@ void Span::pollTask() {
     LOG0("\n** FATAL ERROR: Cannot start homeSpan polling without an initial call to homeSpan.begin()!\n** PROGRAM HALTED **\n\n");
     while(1);    
   }
-
-  if(!isInitialized){
-  
-    processSerialCommand("i");        // print homeSpan configuration info
-           
-    HAPClient::init();                // read NVS and load HAP settings  
-
-    if(!strlen(network.wifiData.ssid)){
-      LOG0("*** WIFI CREDENTIALS DATA NOT FOUND.  ");
-      LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
-    } else {
-    }     
-
-    LOG0("%s is READY!\n\n",displayName);
-    isInitialized=true;
-    
-  } // isInitialized
 
   if(strlen(network.wifiData.ssid)>0){
       checkConnect();
@@ -283,82 +357,7 @@ void Span::checkConnect(){
 
   if(connected>1)                           // Do not initialize everything below if this is only a reconnect
     return;
-    
-  char id[18];                              // create string version of Accessory ID for MDNS broadcast
-  memcpy(id,HAPClient::accessory.ID,17);    // copy ID bytes
-  id[17]='\0';                              // add terminating null
-
-  // create broadcaset name from server base name plus accessory ID (without ':')
-
-  int nChars;
-
-  if(!hostNameSuffix)
-    nChars=snprintf(NULL,0,"%s-%.2s%.2s%.2s%.2s%.2s%.2s",hostNameBase,id,id+3,id+6,id+9,id+12,id+15);
-  else
-    nChars=snprintf(NULL,0,"%s%s",hostNameBase,hostNameSuffix);
-    
-  char hostName[nChars+1];
-  
-  if(!hostNameSuffix)
-    sprintf(hostName,"%s-%.2s%.2s%.2s%.2s%.2s%.2s",hostNameBase,id,id+3,id+6,id+9,id+12,id+15);
-  else
-    sprintf(hostName,"%s%s",hostNameBase,hostNameSuffix);
-
-  char d[strlen(hostName)+1];  
-  sscanf(hostName,"%[A-Za-z0-9-]",d);
-  
-  if(strlen(hostName)>255|| hostName[0]=='-' || hostName[strlen(hostName)-1]=='-' || strlen(hostName)!=strlen(d)){
-    LOG0("\n*** Error:  Can't start MDNS due to invalid hostname '%s'.\n",hostName);
-    LOG0("*** Hostname must consist of 255 or less alphanumeric characters or a hyphen, except that the hyphen cannot be the first or last character.\n");
-    LOG0("*** PROGRAM HALTED!\n\n");
-    while(1);
-  }
-    
-  LOG0("\nStarting MDNS...\n\n");
-  LOG0("HostName:      %s.local:%d\n",hostName,tcpPortNum);
-  LOG0("Display Name:  %s\n",displayName);
-  LOG0("Model Name:    %s\n",modelName);
-  LOG0("Setup ID:      %s\n\n",qrID);
-  
-  MDNS.begin(hostName);                         // set server host name (.local implied)
-  MDNS.setInstanceName(displayName);            // set server display name
-  MDNS.addService("_hap","_tcp",tcpPortNum);    // advertise HAP service on specified port
-
-  // add MDNS (Bonjour) TXT records for configurable as well as fixed values (HAP Table 6-7)
-
-  char cNum[16];
-  sprintf(cNum,"%d",hapConfig.configNumber);
-  
-  mdns_service_txt_item_set("_hap","_tcp","c#",cNum);            // Accessory Current Configuration Number (updated whenever config of HAP Accessory Attribute Database is updated)
-  mdns_service_txt_item_set("_hap","_tcp","md",modelName);       // Accessory Model Name
-  mdns_service_txt_item_set("_hap","_tcp","ci",category);        // Accessory Category (HAP Section 13.1)
-  mdns_service_txt_item_set("_hap","_tcp","id",id);              // string version of Accessory ID in form XX:XX:XX:XX:XX:XX (HAP Section 5.4)
-
-  mdns_service_txt_item_set("_hap","_tcp","ff","0");             // HAP Pairing Feature flags.  MUST be "0" to specify Pair Setup method (HAP Table 5-3) without MiFi Authentification
-  mdns_service_txt_item_set("_hap","_tcp","pv","1.1");           // HAP version - MUST be set to "1.1" (HAP Section 6.6.3)
-  mdns_service_txt_item_set("_hap","_tcp","s#","1");             // HAP current state - MUST be set to "1"
-
-  if(!HAPClient::nAdminControllers())                            // Accessory is not yet paired
-    mdns_service_txt_item_set("_hap","_tcp","sf","1");           // set Status Flag = 1 (Table 6-8)
-  else
-    mdns_service_txt_item_set("_hap","_tcp","sf","0");           // set Status Flag = 0
-
-  mdns_service_txt_item_set("_hap","_tcp","hspn",HOMESPAN_VERSION);             // HomeSpan Version Number (info only - NOT used by HAP)
-  mdns_service_txt_item_set("_hap","_tcp","ard-esp32",ARDUINO_ESP_VERSION);     // Arduino-ESP32 Version Number (info only - NOT used by HAP)
-  mdns_service_txt_item_set("_hap","_tcp","board",ARDUINO_VARIANT);             // Board Name (info only - NOT used by HAP)
-  mdns_service_txt_item_set("_hap","_tcp","sketch",sketchVersion);              // Sketch Version (info only - NOT used by HAP)
-
-  uint8_t hashInput[22];
-  uint8_t hashOutput[64];
-  char setupHash[9];
-  size_t len;
-  
-  memcpy(hashInput,qrID,4);                                           // Create the Seup ID for use with optional QR Codes.  This is an undocumented feature of HAP R2!
-  memcpy(hashInput+4,id,17);                                          // Step 1: Concatenate 4-character Setup ID and 17-character Accessory ID into hashInput
-  mbedtls_sha512_ret(hashInput,21,hashOutput,0);                      // Step 2: Perform SHA-512 hash on combined 21-byte hashInput to create 64-byte hashOutput
-  mbedtls_base64_encode((uint8_t *)setupHash,9,&len,hashOutput,4);    // Step 3: Encode the first 4 bytes of hashOutput in base64, which results in an 8-character, null-terminated, setupHash
-  mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
-   
+       
   LOG0("Starting HAP Server on port %d supporting %d simultaneous HomeKit Controller Connections...\n\n",tcpPortNum,maxConnections);
 
   hapServer->begin();
