@@ -40,10 +40,10 @@
 #include <unordered_set>
 #include <nvs.h>
 #include <mbedtls/base64.h>
+#include <WiFi.h>
 
 #include "Settings.h"
 #include "Utils.h"
-#include "Network.h"
 #include "HAPConstants.h"
 #include "HapQR.h"
 #include "Characteristics.h"
@@ -130,7 +130,6 @@ class Span{
   friend class SpanAccessory;
   friend class SpanService;
   friend class SpanCharacteristic;
-  friend class Network;
   friend class HAPClient;
   
   const char *displayName;                      // display name for this device - broadcast as part of Bonjour MDNS
@@ -158,7 +157,6 @@ class Span{
   const char *defaultSetupCode=DEFAULT_SETUP_CODE;            // Setup Code used for pairing
   int logLevel=DEFAULT_LOG_LEVEL;                             // level for writing out log messages to serial monitor
   uint8_t maxConnections=CONFIG_LWIP_MAX_SOCKETS-2;           // maximum number of allowed simultaneous HAP connections
-  unsigned long comModeLife=DEFAULT_COMMAND_TIMEOUT*1000;     // length of time (in milliseconds) to keep Command Mode alive before resuming normal operations
   uint16_t tcpPortNum=DEFAULT_TCP_PORT;                       // port for TCP communications between HomeKit and HomeSpan
   char qrID[5]="";                                            // Setup ID used for pairing with QR Code
   void (*wifiCallback)()=NULL;                                // optional callback function to invoke once WiFi connectivity is established
@@ -166,7 +164,6 @@ class Span{
   void (*statusCallback)(HS_STATUS status)=NULL;              // optional callback when HomeSpan status changes
   
   WiFiServer *hapServer;                            // pointer to the HAP Server connection
-  Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
   TaskHandle_t pollTaskHandle = NULL;               // optional task handle to use for poll() function
     
   SpanConfig hapConfig;                             // track configuration changes to the HAP Accessory database; used to increment the configuration number (c#) when changes found
@@ -196,6 +193,11 @@ class Span{
     sscanf(uuid,"%*8[0-9a-fA-F]-%*4[0-9a-fA-F]-%*4[0-9a-fA-F]-%*4[0-9a-fA-F]-%*12[0-9a-fA-F]%n",&x);
     return(isCustom && (strlen(uuid)!=36 || x!=36));    
   }
+
+  struct {                            // TEMPORARY FOR TESTING - TO BE DELETED WHEN WIFI CONNECITON IS DELETED
+    char ssid[33]="";
+    char pwd[65]="";
+  } wifiData;
   
   public:
 
@@ -210,10 +212,6 @@ class Span{
   boolean updateDatabase(boolean updateMDNS=true);   // updates HAP Configuration Number and Loop vector; if updateMDNS=true and config number has changed, re-broadcasts MDNS 'c#' record; returns true if config number changed
   boolean deleteAccessory(uint32_t aid);             // deletes Accessory with matching aid; returns true if found, else returns false 
 
-  Span& setApSSID(const char *ssid){network.apSSID=ssid;return(*this);}                  // sets Access Point SSID
-  Span& setApPassword(const char *pwd){network.apPassword=pwd;return(*this);}            // sets Access Point Password
-  Span& setApTimeout(uint16_t nSec){network.lifetime=nSec*1000;return(*this);}           // sets Access Point Timeout (seconds)
-  Span& setCommandTimeout(uint16_t nSec){comModeLife=nSec*1000;return(*this);}           // sets Command Mode Timeout (seconds)
   Span& setLogLevel(int level){logLevel=level;return(*this);}                            // sets Log Level for log messages (0=baseline, 1=intermediate, 2=all, -1=disable all serial input/output)
   int getLogLevel(){return(logLevel);}                                                   // get Log Level
   Span& setSerialInputDisable(boolean val){serialInputDisabled=val;return(*this);}       // sets whether serial input is disabled (true) or enabled (false)

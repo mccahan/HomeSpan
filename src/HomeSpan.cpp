@@ -67,13 +67,13 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
 
   size_t len;
 
-  if(strlen(network.wifiData.ssid)){                                                // if setWifiCredentials was already called
-    nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
+  if(strlen(wifiData.ssid)){                                                // if setWifiCredentials was already called
+    nvs_set_blob(wifiNVS,"WIFIDATA",&wifiData,sizeof(wifiData));    // update data
     nvs_commit(wifiNVS);                                                            // commit to NVS
   } else
   
   if(!nvs_get_blob(wifiNVS,"WIFIDATA",NULL,&len))                                   // else if found WiFi data in NVS
-    nvs_get_blob(wifiNVS,"WIFIDATA",&homeSpan.network.wifiData,&len);               // retrieve data  
+    nvs_get_blob(wifiNVS,"WIFIDATA",&homeSpan.wifiData,&len);               // retrieve data  
 
   delay(2000);
 
@@ -185,7 +185,7 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
     mbedtls_base64_encode((uint8_t *)setupHash,9,&len,hashOutput,4);    // Step 3: Encode the first 4 bytes of hashOutput in base64, which results in an 8-character, null-terminated, setupHash
     mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
 
-    if(!strlen(network.wifiData.ssid)){
+    if(!strlen(wifiData.ssid)){
       LOG0("*** WIFI CREDENTIALS DATA NOT FOUND.  ");
       LOG0("YOU MAY CONFIGURE BY TYPING 'W <RETURN>'.\n\n");
     } else {
@@ -193,7 +193,7 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
 
     LOG0("%s is READY!\n\n",displayName);
 
-
+    Serial.printf("\n%s %s\n\n",wifiData.ssid,wifiData.pwd);
 
 
   
@@ -223,7 +223,7 @@ void Span::pollTask() {
     while(1);    
   }
 
-  if(strlen(network.wifiData.ssid)>0){
+  if(strlen(wifiData.ssid)>0){
       checkConnect();
   }
 
@@ -342,10 +342,10 @@ void Span::checkConnect(){
       waitTime*=2;
       
     if(waitTime==32000){
-      LOG0("\n*** Can't connect to %s.  You may type 'W <return>' to re-configure WiFi, or 'X <return>' to erase WiFi credentials.  Will try connecting again in 60 seconds.\n\n",network.wifiData.ssid);
+      LOG0("\n*** Can't connect to %s.  You may type 'W <return>' to re-configure WiFi, or 'X <return>' to erase WiFi credentials.  Will try connecting again in 60 seconds.\n\n",wifiData.ssid);
       waitTime=60000;
     } else {    
-      WiFi.begin(network.wifiData.ssid,network.wifiData.pwd);
+      WiFi.begin(wifiData.ssid,wifiData.pwd);
     }
 
     alarmConnect=millis()+waitTime;
@@ -472,18 +472,14 @@ void Span::processSerialCommand(const char *c){
       if(strlen(setupCode)!=8){
         LOG0("\n*** Invalid request to change Setup Code.  Code must be exactly 8 digits.\n\n");
       } else
-      
-      if(!network.allowedCode(setupCode)){
-        LOG0("\n*** Invalid request to change Setup Code.  Code too simple.\n\n");
-      } else {
         
-        LOG0("\nGenerating SRP verification data for new Setup Code: %.3s-%.2s-%.3s ... ",setupCode,setupCode+3,setupCode+5);
-        HAPClient::srp.createVerifyCode(setupCode,verifyData.verifyCode,verifyData.salt);                         // create verification code from default Setup Code and random salt
-        nvs_set_blob(HAPClient::srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                              // update data
-        nvs_commit(HAPClient::srpNVS);                                                                            // commit to NVS
-        LOG0("New Code Saved!\n");
-        LOG0("Setup Payload for Optional QR Code: %s\n\n",qrCode.get(atoi(setupCode),qrID,atoi(category)));
-      }            
+      LOG0("\nGenerating SRP verification data for new Setup Code: %.3s-%.2s-%.3s ... ",setupCode,setupCode+3,setupCode+5);
+      HAPClient::srp.createVerifyCode(setupCode,verifyData.verifyCode,verifyData.salt);                         // create verification code from default Setup Code and random salt
+      nvs_set_blob(HAPClient::srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                              // update data
+      nvs_commit(HAPClient::srpNVS);                                                                            // commit to NVS
+      LOG0("New Code Saved!\n");
+      LOG0("Setup Payload for Optional QR Code: %s\n\n",qrCode.get(atoi(setupCode),qrID,atoi(category)));
+                
     }
     break;
 
@@ -509,52 +505,6 @@ void Span::processSerialCommand(const char *c){
       if(homeSpan.pairCallback)
         homeSpan.pairCallback(false);
 
-    }
-    break;
-
-    case 'W': {
-
-      if(serialInputDisabled || logLevel<0)       // do not proceed if serial input/output is not fully enabled
-        return;
-
-      if(strlen(network.wifiData.ssid)>0){
-        LOG0("*** Stopping all current WiFi services...\n\n");
-        hapServer->end();
-        MDNS.end();
-        WiFi.disconnect();
-      }
-
-      network.serialConfigure();
-      nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
-      nvs_commit(wifiNVS);                                                            // commit to NVS
-      LOG0("\n*** WiFi Credentials SAVED!  Restarting ***\n\n");
-      reboot();  
-      }
-    break;
-
-    case 'A': {
-
-      if(strlen(network.wifiData.ssid)>0){
-        LOG0("*** Stopping all current WiFi services...\n\n");
-        hapServer->end();
-        MDNS.end();
-        WiFi.disconnect();
-      }
-      
-      network.apConfigure();
-      nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
-      nvs_commit(wifiNVS);                                                            // commit to NVS
-      LOG0("\n*** Credentials saved!\n");
-      if(strlen(network.setupCode)){
-        char s[10];
-        sprintf(s,"S%s",network.setupCode);
-        processSerialCommand(s);
-      } else {
-        LOG0("*** Setup Code Unchanged\n");
-      }
-      
-      LOG0("\n*** Restarting...\n\n");
-      reboot();
     }
     break;
     
