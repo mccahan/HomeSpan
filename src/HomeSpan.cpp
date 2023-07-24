@@ -106,10 +106,10 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   
   LOG0("\n\nDevice Name:      %s\n\n",displayName);
 
-
     HAPClient::init();                // read NVS and load HAP settings
 
-    esp_event_loop_create_default();          // THIS IS REQUIRED TO ALLOW INITIALIZATION OF MDNS WITHOUTH FIRST STARTING WIFI
+    if(WiFi.getMode()==WIFI_OFF)
+      WiFi.mode(WIFI_STA);
   
     char id[18];                              // create string version of Accessory ID for MDNS broadcast
     memcpy(id,HAPClient::accessory.ID,17);    // copy ID bytes
@@ -184,6 +184,8 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
     mbedtls_sha512_ret(hashInput,21,hashOutput,0);                      // Step 2: Perform SHA-512 hash on combined 21-byte hashInput to create 64-byte hashOutput
     mbedtls_base64_encode((uint8_t *)setupHash,9,&len,hashOutput,4);    // Step 3: Encode the first 4 bytes of hashOutput in base64, which results in an 8-character, null-terminated, setupHash
     mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
+
+    hapServer->begin();
 
     if(!strlen(wifiData.ssid)){
       LOG0("*** WIFI CREDENTIALS DATA NOT FOUND.  ");
@@ -360,7 +362,7 @@ void Span::checkConnect(){
        
   LOG0("Starting HAP Server on port %d supporting %d simultaneous HomeKit Controller Connections...\n\n",tcpPortNum,maxConnections);
 
-  hapServer->begin();
+//  hapServer->begin();
 
   LOG0("\n");
 
