@@ -256,7 +256,6 @@ class Span{
   unordered_map<char, SpanUserCommand *> UserCommands;           // map of pointers to all UserCommands
 
   void pollTask();                              // poll HAP Clients and process any new HAP requests
-  int getFreeSlot();                            // returns free HAPClient slot number. HAPClients slot keep track of each active HAPClient connection
   void checkConnect();                          // check WiFi connection; connect if needed
   void commandMode();                           // allows user to control and reset HomeSpan settings with the control button
   void resetStatus();                           // resets statusLED and calls statusCallback based on current HomeSpan status
@@ -264,14 +263,12 @@ class Span{
 
   int sprintfAttributes(char *cBuf, int flags=GET_VALUE|GET_META|GET_PERMS|GET_TYPE|GET_DESC);   // prints Attributes JSON database into buf, unless buf=NULL; return number of characters printed, excluding null terminator
   
-  void prettyPrint(char *buf, int nsp=2, int minLogLevel=0);              // print arbitrary JSON from buf to serial monitor, formatted with indentions of 'nsp' spaces, subject to specified minimum log level
-  SpanCharacteristic *find(uint32_t aid, int iid);                        // return Characteristic with matching aid and iid (else NULL if not found)
-  int countCharacteristics(char *buf);                                    // return number of characteristic objects referenced in PUT /characteristics JSON request
-  int updateCharacteristics(char *buf, SpanBuf *pObj);                    // parses PUT /characteristics JSON request 'buf into 'pObj' and updates referenced characteristics; returns 1 on success, 0 on fail
-  int sprintfAttributes(SpanBuf *pObj, int nObj, char *cBuf);             // prints SpanBuf object into buf, unless buf=NULL; return number of characters printed, excluding null terminator, even if buf=NULL
-  int sprintfAttributes(char **ids, int numIDs, int flags, char *cBuf);   // prints accessory.characteristic ids into buf, unless buf=NULL; return number of characters printed, excluding null terminator, even if buf=NULL
-  void clearNotify(int slotNum);                                          // set ev notification flags for connection 'slotNum' to false across all characteristics 
-  int sprintfNotify(SpanBuf *pObj, int nObj, char *cBuf, int conNum);     // prints notification JSON into buf based on SpanBuf objects and specified connection number
+  void prettyPrint(char *buf, int nsp=2, int minLogLevel=0);                    // print arbitrary JSON from buf to serial monitor, formatted with indentions of 'nsp' spaces, subject to specified minimum log level
+  SpanCharacteristic *find(uint32_t aid, int iid);                              // return Characteristic with matching aid and iid (else NULL if not found)
+  int countCharacteristics(char *buf);                                          // return number of characteristic objects referenced in PUT /characteristics JSON request
+  int updateCharacteristics(char *buf, SpanBuf *pObj);                          // parses PUT /characteristics JSON request 'buf into 'pObj' and updates referenced characteristics; returns 1 on success, 0 on fail
+  int sprintfAttributes(SpanBuf *pObj, int nObj, char *cBuf);                   // prints SpanBuf object into buf, unless buf=NULL; return number of characters printed, excluding null terminator, even if buf=NULL
+  int sprintfAttributes(char **ids, int numIDs, int flags, char *cBuf);         // prints accessory.characteristic ids into buf, unless buf=NULL; return number of characters printed, excluding null terminator, even if buf=NULL
 
   static boolean invalidUUID(const char *uuid, boolean isCustom){
     int x=0;
@@ -430,6 +427,7 @@ class SpanCharacteristic{
 
   friend class Span;
   friend class SpanService;
+  friend class HAPClient;
 
   union UVal {                                  
     BOOL_t BOOL;
@@ -457,7 +455,6 @@ class SpanCharacteristic{
   boolean staticRange;                     // Flag that indicates whether Range is static and cannot be changed with setRange()
   boolean customRange=false;               // Flag for custom ranges
   char *validValues=NULL;                  // Optional JSON array of valid values.  Applicable only to uint8 Characteristics
-  boolean *ev;                             // Characteristic Event Notify Enable (per-connection)
   char *nvsKey=NULL;                       // key for NVS storage of Characteristic value
   boolean isCustom;                        // flag to indicate this is a Custom Characteristic
   boolean setRangeError=false;             // flag to indicate attempt to set Range on Characteristic that does not support changes to Range

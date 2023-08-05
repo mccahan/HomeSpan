@@ -65,6 +65,8 @@ void setup() {
 //  homeSpan.setSerialInputDisable(true);
 //  homeSpan.enableOTA();
 
+//  homeSpan.reserveSocketConnections(10);
+
   homeSpan.begin(Category::Lighting,"HomeSpan LED");
   
   new SpanAccessory();   

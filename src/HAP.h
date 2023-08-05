@@ -95,12 +95,14 @@ struct HAPClient {
   static SRP6A srp;                                   // stores all SRP-6A keys used for Pair-Setup
   static Accessory accessory;                         // Accessory ID and Ed25519 public and secret keys- permanently stored
   static list<Controller> controllerList;             // linked-list of Paired Controller IDs and ED25519 long-term public keys - permanently stored
-  static int conNum;                                  // connection number - used to keep track of per-connection EV notifications
+  static HAPClient *currentClient;                    // pointer to currently active HAP Client
 
   // individual structures and data defined for each Hap Client connection
   
-  WiFiClient client;              // handle to client
-  Controller *cPair=NULL;         // pointer to info on current, session-verified Paired Controller (NULL=un-verified, and therefore un-encrypted, connection)
+  WiFiClient client;                    // handle to client
+  Controller *cPair=NULL;               // pointer to info on current, session-verified Paired Controller (NULL=un-verified, and therefore un-encrypted, connection)
+  uint32_t connectionID;                // unique connection ID
+  list<SpanCharacteristic*> evList;     // linked-list of pointer to Characteristics for EV notification
    
   // These keys are generated in the first call to pair-verify and used in the second call to pair-verify so must persist for a short period
     
@@ -117,6 +119,9 @@ struct HAPClient {
   Nonce c2aNonce;                 // decryption nonce (starts at zero at end of each Pair-Verify and increment every encryption - NOT DOCUMENTED)
 
   // define member methods
+
+  HAPClient(){}
+  HAPClient(WiFiClient _client) : client(_client) {pairStatus=pairState_M1;}
 
   void processRequest();                       // process HAP request  
   int postPairSetupURL();                      // POST /pair-setup (HAP Section 5.6)
@@ -154,10 +159,11 @@ struct HAPClient {
   static void tearDown(uint8_t *id);                                                   // tears down connections using Controller with ID=id; tears down all connections if id=NULL
   static void checkNotifications();                                                    // checks for Event Notifications and reports to controllers as needed (HAP Section 6.8)
   static void checkTimedWrites();                                                      // checks for expired Timed Write PIDs, and clears any found (HAP Section 6.7.2.4)
-  static void eventNotify(SpanBuf *pObj, int nObj, int ignoreClient=-1);               // transmits EVENT Notifications for nObj SpanBuf objects, pObj, with optional flag to ignore a specific client
+  static void eventNotify(SpanBuf *pObj, int nObj, HAPClient *ignoreClient=NULL);      // transmits EVENT Notifications for nObj SpanBuf objects, pObj, with optional flag to ignore a specific client
+  static int sprintfNotify(SpanBuf *pObj, int nObj, char *cBuf, HAPClient *hc);        // prints notification JSON into buf based on SpanBuf objects and specified connection number
 };
 
 /////////////////////////////////////////////////
 // Extern Variables
 
-extern HAPClient **hap;
+extern std::list<HAPClient>hapList;

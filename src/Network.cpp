@@ -160,21 +160,14 @@ void Network::apConfigure(){
     dnsServer.processNextRequest();
 
     if(client=apServer.available()){                    // found a new HTTP client
-      LOG2("=======================================\n");
-      LOG1("** Access Point Client Connected: (");
-      LOG1(millis()/1000);
-      LOG1(" sec) ");
-      LOG1(client.remoteIP());
-      LOG1("\n");
+      LOG1("=== Access Point Client Connected: %s ===\n",client.remoteIP().toString().c_str());
       LOG2("\n");
       delay(50);                                        // pause to allow data buffer to begin to populate
     }
     
     if(client && client.available()){                   // if connection exists and data is available
 
-      LOG2("<<<<<<<<< ");
-      LOG2(client.remoteIP());
-      LOG2(" <<<<<<<<<\n");
+      LOG2("<<<<<<<<< %s <<<<<<<<<\n",client.remoteIP().toString().c_str());
 
       int messageSize=client.available();        
 
@@ -352,12 +345,9 @@ void Network::processRequest(char *body, char *formData){
   responseHead+="\r\n";               // add blank line between reponse header and body
   responseBody+="</body></html>";     // close out body and html tags
 
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n>>>>>>>>>> %s >>>>>>>>>>\n",client.remoteIP().toString().c_str());
   LOG2(responseHead);
   LOG2(responseBody);
-  LOG2("\n");
   client.print(responseHead);
   client.print(responseBody);
   LOG2("------------ SENT! --------------\n");
@@ -403,9 +393,7 @@ int Network::getFormValue(char *formData, const char *tag, char *value, int maxS
 int Network::badRequestError(){
 
   char s[]="HTTP/1.1 400 Bad Request\r\n\r\n";
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n>>>>>>>>>> %s >>>>>>>>>>\n",client.remoteIP().toString().c_str());
   LOG2(s);
   client.print(s);
   LOG2("------------ SENT! --------------\n");

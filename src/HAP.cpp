@@ -149,6 +149,8 @@ void HAPClient::processRequest(){
 
   int nBytes, messageSize;
 
+  currentClient=this;                  // save pointer to current HAP Client as global variable
+
   messageSize=client.available();        
 
   if(messageSize>MAX_HTTP){            // exceeded maximum number of bytes allowed
@@ -160,9 +162,7 @@ void HAPClient::processRequest(){
   TempBuffer <uint8_t> httpBuf(messageSize+1);      // leave room for null character added below
   
   if(cPair){                           // expecting encrypted message
-    LOG2("<<<< #### ");
-    LOG2(client.remoteIP());
-    LOG2(" #### <<<<\n");
+    LOG2("\n<<<< #### %s (%d) #### <<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
 
     nBytes=receiveEncrypted(httpBuf.get(),messageSize);   // decrypt and return number of bytes read      
         
@@ -172,9 +172,7 @@ void HAPClient::processRequest(){
     }
         
   } else {                                            // expecting plaintext message  
-    LOG2("<<<<<<<<< ");
-    LOG2(client.remoteIP());
-    LOG2(" <<<<<<<<<\n");
+    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
     
     nBytes=client.read(httpBuf.get(),messageSize);   // read expected number of bytes
 
@@ -325,9 +323,7 @@ void HAPClient::processRequest(){
 int HAPClient::notFoundError(){
 
   char s[]="HTTP/1.1 404 Not Found\r\n\r\n";
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(s);
   client.print(s);
   LOG2("------------ SENT! --------------\n");
@@ -343,9 +339,7 @@ int HAPClient::notFoundError(){
 int HAPClient::badRequestError(){
 
   char s[]="HTTP/1.1 400 Bad Request\r\n\r\n";
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(s);
   client.print(s);
   LOG2("------------ SENT! --------------\n");
@@ -361,9 +355,7 @@ int HAPClient::badRequestError(){
 int HAPClient::unauthorizedError(){
 
   char s[]="HTTP/1.1 470 Connection Authorization Required\r\n\r\n";
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(s);
   client.print(s);
   LOG2("------------ SENT! --------------\n");
@@ -381,7 +373,6 @@ int HAPClient::postPairSetupURL(){
   LOG1("In Pair Setup...");
   
   int tlvState=tlv8.val(kTLVType_State);
-  char buf[64];
 
   if(tlvState==-1){                                           // missing STATE TLV
     LOG0("\n*** ERROR: Missing <M#> State TLV\n\n");
@@ -398,8 +389,7 @@ int HAPClient::postPairSetupURL(){
     return(0);
   };
 
-  sprintf(buf,"Found <M%d>.  Expected <M%d>\n",tlvState,pairStatus);
-  LOG2(buf);
+  LOG1("Found <M%d>.  Expected <M%d>\n",tlvState,pairStatus);
 
   if(tlvState!=pairStatus){                             // error: Device is not yet paired, but out-of-sequence pair-setup STATE was received
     LOG0("\n*** ERROR: Out-of-Sequence Pair-Setup request!\n\n");
@@ -643,14 +633,8 @@ int HAPClient::postPairSetupURL(){
 
 int HAPClient::postPairVerifyURL(){
 
-  LOG2("In Pair Verify #");
-  LOG2(conNum);
-  LOG2(" (");
-  LOG2(client.remoteIP());
-  LOG2(")...");
-  
-  char buf[64];
-  
+  LOG1("In Pair Verify...");
+   
   int tlvState=tlv8.val(kTLVType_State);
 
   if(tlvState==-1){                                           // missing STATE TLV
@@ -668,8 +652,7 @@ int HAPClient::postPairVerifyURL(){
     return(0);
   };
 
-  sprintf(buf,"Found <M%d>\n",tlvState);                 // unlike pair-setup, out-of-sequencing can be handled gracefully for pair-verify (HAP requirement). No need to keep track of pairStatus
-  LOG2(buf);
+  LOG1("Found <M%d>\n",tlvState);                 // unlike pair-setup, out-of-sequencing can be handled gracefully for pair-verify (HAP requirement). No need to keep track of pairStatus
 
   switch(tlvState){          // Pair-Verify STATE received -- process request!  (HAP Section 5.7)
 
@@ -852,11 +835,7 @@ int HAPClient::getAccessoriesURL(){
     return(0);
   }
 
-  LOG1("In Get Accessories #");
-  LOG1(conNum);
-  LOG1(" (");
-  LOG1(client.remoteIP());
-  LOG1(")...\n");
+  LOG1("In Get Accessories...\n");
 
   int nBytes = homeSpan.sprintfAttributes(NULL);        // get size of HAP attributes JSON
   TempBuffer <char> jBuf(nBytes+1);
@@ -865,9 +844,7 @@ int HAPClient::getAccessoriesURL(){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(body);
   LOG2(jBuf.get());
   LOG2("\n");
@@ -888,11 +865,7 @@ int HAPClient::postPairingsURL(){
     return(0);
   }
 
-  LOG1("In Post Pairings #");
-  LOG1(conNum);
-  LOG1(" (");  
-  LOG1(client.remoteIP());
-  LOG1(")...");
+  LOG1("In Post Pairings...");
 
   if(tlv8.val(kTLVType_State)!=1){
     LOG0("\n*** ERROR: 'State' TLV record is either missing or not set to <M1> as required\n\n");
@@ -963,9 +936,7 @@ int HAPClient::postPairingsURL(){
       char *body;
       asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/pairing+tlv8\r\nContent-Length: %d\r\n\r\n",tBuf.len());      // create Body with Content Length = size of TLV data
   
-      LOG2("\n>>>>>>>>>> ");
-      LOG2(client.remoteIP());
-      LOG2(" >>>>>>>>>>\n");
+      LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
       LOG2(body);
       listControllers(tBuf.get());
       sendEncrypted(body,tBuf.get(),tBuf.len());
@@ -988,17 +959,12 @@ int HAPClient::postPairingsURL(){
 
 int HAPClient::getCharacteristicsURL(char *urlBuf){
 
-
   if(!cPair){                       // unverified, unencrypted session
     unauthorizedError();
     return(0);
   }
 
-  LOG1("In Get Characteristics #");
-  LOG1(conNum);
-  LOG1(" (");
-  LOG1(client.remoteIP());
-  LOG1(")...\n");
+  LOG1("In Get Characteristics...\n");
 
   int len=strlen(urlBuf);       // determine number of IDs specificed by counting commas in URL
   int numIDs=1;
@@ -1052,9 +1018,7 @@ int HAPClient::getCharacteristicsURL(char *urlBuf){
   char *body;
   asprintf(&body,"HTTP/1.1 %s\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",!sFlag?"200 OK":"207 Multi-Status",nBytes);
     
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");    
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(body);
   LOG2(jsonBuf);
   LOG2("\n");
@@ -1074,19 +1038,15 @@ int HAPClient::putCharacteristicsURL(char *json){
     return(0);
   }
 
-  LOG1("In Put Characteristics #");
-  LOG1(conNum);
-  LOG1(" (");
-  LOG1(client.remoteIP());
-  LOG1(")...\n");
+  LOG1("In Put Characteristics...\n");
 
   int n=homeSpan.countCharacteristics(json);    // count number of objects in JSON request
   if(n==0)                                      // if no objects found, return
     return(0);
  
-  SpanBuf pObj[n];                                        // reserve space for objects
-  if(!homeSpan.updateCharacteristics(json, pObj))         // perform update
-    return(0);                                            // return if failed to update (error message will have been printed in update)
+  SpanBuf pObj[n];                                   // reserve space for objects
+  if(!homeSpan.updateCharacteristics(json, pObj))    // perform update
+    return(0);                                       // return if failed to update (error message will have been printed in update)
 
   int multiCast=0;                                        // check if all status is OK, or if multicast response is request
   for(int i=0;i<n;i++)
@@ -1097,9 +1057,7 @@ int HAPClient::putCharacteristicsURL(char *json){
     
     char body[]="HTTP/1.1 204 No Content\r\n\r\n";
     
-    LOG2("\n>>>>>>>>>> ");
-    LOG2(client.remoteIP());
-    LOG2(" >>>>>>>>>>\n");
+    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
     LOG2(body);  
 
     sendEncrypted(body,NULL,0);  
@@ -1113,9 +1071,7 @@ int HAPClient::putCharacteristicsURL(char *json){
     char *body;
     asprintf(&body,"HTTP/1.1 207 Multi-Status\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-    LOG2("\n>>>>>>>>>> ");
-    LOG2(client.remoteIP());
-    LOG2(" >>>>>>>>>>\n");    
+    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
     LOG2(body);
     LOG2(jsonBuf);
     LOG2("\n");
@@ -1127,7 +1083,7 @@ int HAPClient::putCharacteristicsURL(char *json){
 
   // Create and send Event Notifications if needed
 
-  eventNotify(pObj,n,HAPClient::conNum);                  // transmit EVENT Notification for "n" pObj objects, except DO NOT notify client making request
+  eventNotify(pObj,n,this);    // transmit EVENT Notification for "n" pObj objects, except DO NOT notify client making request
     
   return(1);
 }
@@ -1141,11 +1097,7 @@ int HAPClient::putPrepareURL(char *json){
     return(0);
   }
 
-  LOG1("In Put Prepare #");
-  LOG1(conNum);
-  LOG1(" (");
-  LOG1(client.remoteIP());
-  LOG1(")...\n");
+  LOG1("In Put Prepare...\n");
 
   char ttlToken[]="\"ttl\":";
   char pidToken[]="\"pid\":";
@@ -1174,9 +1126,7 @@ int HAPClient::putPrepareURL(char *json){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");    
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(body);
   LOG2(jsonBuf);
   LOG2("\n");
@@ -1307,9 +1257,7 @@ int HAPClient::getStatusURL(){
   
   response+="</body></html>";
 
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(response);
   LOG2("\n");
   client.print(response);
@@ -1354,34 +1302,61 @@ void HAPClient::checkTimedWrites(){
 
 //////////////////////////////////////
 
-void HAPClient::eventNotify(SpanBuf *pObj, int nObj, int ignoreClient){
-  
-  for(int cNum=0;cNum<homeSpan.maxConnections;cNum++){        // loop over all connection slots
-    if(hap[cNum]->client && cNum!=ignoreClient){       // if there is a client connected to this slot and it is NOT flagged to be ignored (in cases where it is the client making a PUT request)
+void HAPClient::eventNotify(SpanBuf *pObj, int nObj, HAPClient *ignoreClient){
 
-      int nBytes=homeSpan.sprintfNotify(pObj,nObj,NULL,cNum);          // get JSON response for notifications to client cNum - includes terminating null (will be recast to uint8_t* below)
+  for(auto it=hapList.begin(); it!=hapList.end(); it++){
+    if(&*it!=ignoreClient){
+      
+      int nBytes=sprintfNotify(pObj,nObj,NULL,&*it);          // get JSON response for notifications to each current connection - includes terminating null (will be recast to uint8_t* below)
 
-      if(nBytes>0){                                                    // if there are notifications to send to client cNum
+      if(nBytes>0){                                           // if there are notifications to send to client cNum
         char jsonBuf[nBytes+1];
-        homeSpan.sprintfNotify(pObj,nObj,jsonBuf,cNum);
+        sprintfNotify(pObj,nObj,jsonBuf,&*it);
 
         char *body;
         asprintf(&body,"EVENT/1.0 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
 
-        LOG2("\n>>>>>>>>>> ");
-        LOG2(hap[cNum]->client.remoteIP());
-        LOG2(" >>>>>>>>>>\n");    
+        LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
         LOG2(body);
         LOG2(jsonBuf);
         LOG2("\n");
   
-        hap[cNum]->sendEncrypted(body,(uint8_t *)jsonBuf,nBytes);        // note recasting of jsonBuf into uint8_t*
+        (*it).sendEncrypted(body,(uint8_t *)jsonBuf,nBytes);        // note recasting of jsonBuf into uint8_t*
         free(body);
 
       } // if there are characteristic updates to notify client cNum
     } // if client exists
   }
+}
 
+///////////////////////////////
+
+int HAPClient::sprintfNotify(SpanBuf *pObj, int nObj, char *cBuf, HAPClient *hc){
+
+  int nChars=0;
+  boolean notifyFlag=false;
+  
+  nChars+=snprintf(cBuf,cBuf?64:0,"{\"characteristics\":[");
+
+  for(int i=0;i<nObj;i++){                              // loop over all objects
+    
+    if(pObj[i].status==StatusCode::OK && pObj[i].val){           // characteristic was successfully updated with a new value (i.e. not just an EV request)
+      
+      if(std::find(hc->evList.begin(),hc->evList.end(),pObj[i].characteristic)!=hc->evList.end()){           // if notifications requested for this characteristic by specified connection number
+      
+        if(notifyFlag)                                                           // already printed at least one other characteristic
+          nChars+=snprintf(cBuf?(cBuf+nChars):NULL,cBuf?64:0,",");               // add preceeding comma before printing next characteristic
+        
+        nChars+=pObj[i].characteristic->sprintfAttributes(cBuf?(cBuf+nChars):NULL,GET_VALUE|GET_AID|GET_NV);    // get JSON attributes for characteristic
+        notifyFlag=true;
+        
+      } // notification requested
+    } // characteristic updated
+  } // loop over all objects
+
+  nChars+=snprintf(cBuf?(cBuf+nChars):NULL,cBuf?64:0,"]}");
+
+  return(notifyFlag?nChars:0);                          // if notifyFlag is not set, return 0, else return number of characters printed to cBuf
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -1395,9 +1370,7 @@ void HAPClient::tlvRespond(){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/pairing+tlv8\r\nContent-Length: %d\r\n\r\n",tBuf.len());      // create Body with Content Length = size of TLV data
   
-  LOG2("\n>>>>>>>>>> ");
-  LOG2(client.remoteIP());
-  LOG2(" >>>>>>>>>>\n");
+  LOG2("\n>>>>>>>>> %s (%d) >>>>>>>>>\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
   LOG2(body);
   tlv8.print(2);
 
@@ -1629,12 +1602,12 @@ void HAPClient::removeController(uint8_t *id){
 //////////////////////////////////////
 
 void HAPClient::tearDown(uint8_t *id){
-  
-  for(int i=0;i<homeSpan.maxConnections;i++){     // loop over all connection slots
-    if(hap[i]->client && (id==NULL || (hap[i]->cPair && !memcmp(id,hap[i]->cPair->ID,36)))){
-      LOG1("*** Terminating Client #%d\n",i);
-      hap[i]->client.stop();
-    }
+
+  for(auto it=hapList.begin(); it!=hapList.end(); it++){
+    if((*it).client && (id==NULL || ((*it).cPair && !memcmp(id,(*it).cPair->ID,36)))){
+      LOG1("=== Stopping Client Connection: %s (%d) ===\n",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
+      (*it).client.stop();
+    }    
   }
 }
 
@@ -1745,5 +1718,5 @@ pairState HAPClient::pairStatus;
 Accessory HAPClient::accessory;                         
 list<Controller> HAPClient::controllerList;
 SRP6A HAPClient::srp;
-int HAPClient::conNum;
+HAPClient *HAPClient::currentClient;
  
