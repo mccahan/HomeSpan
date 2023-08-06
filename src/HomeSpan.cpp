@@ -210,9 +210,21 @@ void Span::pollTask() {
   WiFiClient newClient;
 
   if(newClient=hapServer->available()){                        // found a new HTTP client
-    hapList.emplace_back(newClient);                           // save client in linked-list
-
     LOG1("=== New Client Connection: %s (%d) ===\n",newClient.remoteIP().toString().c_str(),newClient.fd()-LWIP_SOCKET_OFFSET+1);
+    
+    if(hapList.size()<maxConnections){                         // there is room for more connections
+      hapList.emplace_back(newClient);                         // save client in linked-list
+      
+    } else {
+      LOG1("\n*** WARNING: Maximum Connections (%d) Exceeded!  Closing Connection\n",maxConnections);
+      LOG2("\n>>>>>>>>> %s (%d) >>>>>>>>>\n",newClient.remoteIP().toString().c_str(),newClient.fd()-LWIP_SOCKET_OFFSET+1);
+      char s[]="HTTP/1.1 503 Service Unavailable\r\n\r\n";
+      LOG2(s);
+      newClient.print(s);
+      LOG2("------------ SENT! --------------\n\n");
+      delay(1);
+      newClient.stop();      
+    }
   }
 
   auto it=hapList.begin();
@@ -225,9 +237,9 @@ void Span::pollTask() {
     } 
     
     if(!(*it).client.connected()){                         // client is no longer connected
-      LOG1("=== Terminated Client Connection: %s (%d) ===\n",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
+      LOG1("=== Terminated Client Connection: %s ===\n",(*it).ipSocket.c_str());
       LOG2("\n");
-      it=hapList.erase(it);                                         // erase entry in linked list - iterator is set to next entry
+      it=hapList.erase(it);                                // erase entry in linked list - iterator is set to next entry
     } else {
       it++;
     }
@@ -521,7 +533,7 @@ void Span::processSerialCommand(const char *c){
         LOG0("No current connections\n");
       } else {
         for(auto it=hapList.begin(); it!=hapList.end(); it++){
-          LOG0("Connection: %s (%d)  ",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
+          LOG0("Connection: %s  ",(*it).ipSocket.c_str());
           if((*it).cPair){
             LOG0("  ID=");
             HAPClient::charPrintRow((*it).cPair->ID,36);

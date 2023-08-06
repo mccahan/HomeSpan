@@ -56,7 +56,7 @@ void setup() {
 //  homeSpan.setControlPin(21);
   
   homeSpan.setLogLevel(2);
-//  homeSpan.reserveSocketConnections(10);
+//  homeSpan.reserveSocketConnections(12);
   
 //  homeSpan.setApSSID("HS_Setup");
 //  homeSpan.setApPassword("");
@@ -65,7 +65,6 @@ void setup() {
 //  homeSpan.setSerialInputDisable(true);
 //  homeSpan.enableOTA();
 
-//  homeSpan.reserveSocketConnections(10);
 
   homeSpan.begin(Category::Lighting,"HomeSpan LED");
   

@@ -103,11 +103,12 @@ struct HAPClient {
   Controller *cPair=NULL;               // pointer to info on current, session-verified Paired Controller (NULL=un-verified, and therefore un-encrypted, connection)
   uint32_t connectionID;                // unique connection ID
   list<SpanCharacteristic*> evList;     // linked-list of pointer to Characteristics for EV notification
+  String ipSocket;                      // stores IP and Socket number
    
   // These keys are generated in the first call to pair-verify and used in the second call to pair-verify so must persist for a short period
     
   uint8_t publicCurveKey[32];     // public key for Curve25519 encryption
-  uint8_t sharedCurveKey[32];     // Pair-Verfied Shared Secret key derived from Accessory's epehmeral secretCurveKey and Controller's iosCurveKey
+  uint8_t sharedCurveKey[32];     // Pair-Verfied Shared Secret key derived from Accessory's ephemeral secretCurveKey and Controller's iosCurveKey
   uint8_t sessionKey[32];         // shared Session Key (derived with various HKDF calls)
   uint8_t iosCurveKey[32];        // Curve25519 public key for associated paired controller
 
@@ -120,8 +121,7 @@ struct HAPClient {
 
   // define member methods
 
-  HAPClient(){}
-  HAPClient(WiFiClient _client) : client(_client) {pairStatus=pairState_M1;}
+  HAPClient(WiFiClient _client);               // constructor
 
   void processRequest();                       // process HAP request  
   int postPairSetupURL();                      // POST /pair-setup (HAP Section 5.6)
@@ -137,9 +137,10 @@ struct HAPClient {
   void sendEncrypted(char *body, uint8_t *dataBuf, int dataLen);    // send client complete ChaCha20-Poly1305 encrypted HTTP mesage comprising a null-terminated 'body' and 'dataBuf' with 'dataLen' bytes
   int receiveEncrypted(uint8_t *httpBuf, int messageSize);          // decrypt HTTP request (HAP Section 6.5)
 
-  int notFoundError();           // return 404 error
-  int badRequestError();         // return 400 error
-  int unauthorizedError();       // return 470 error
+  void httpError(const char *s);  // returns http error and closes client connection
+  int notFoundError();            // return 404 error
+  int badRequestError();          // return 400 error
+  int unauthorizedError();        // return 470 error
 
   // define static methods
     

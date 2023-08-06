@@ -145,6 +145,14 @@ void HAPClient::init(){
 
 //////////////////////////////////////
 
+HAPClient::HAPClient(WiFiClient _client) : client(_client) {
+  
+  pairStatus=pairState_M1;
+  ipSocket=client.remoteIP().toString() + " (" + String(client.fd()-LWIP_SOCKET_OFFSET+1) +")";
+}
+
+//////////////////////////////////////
+
 void HAPClient::processRequest(){
 
   int nBytes, messageSize;
@@ -162,7 +170,7 @@ void HAPClient::processRequest(){
   TempBuffer <uint8_t> httpBuf(messageSize+1);      // leave room for null character added below
   
   if(cPair){                           // expecting encrypted message
-    LOG2("\n<<<< #### %s (%d) #### <<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+    LOG2("\n<<<< #### %s #### <<<<\n",ipSocket.c_str());
 
     nBytes=receiveEncrypted(httpBuf.get(),messageSize);   // decrypt and return number of bytes read      
         
@@ -172,7 +180,7 @@ void HAPClient::processRequest(){
     }
         
   } else {                                            // expecting plaintext message  
-    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+    LOG2("\n<<<<<<<<< %s <<<<<<<<<\n",ipSocket.c_str());
     
     nBytes=client.read(httpBuf.get(),messageSize);   // read expected number of bytes
 
@@ -320,50 +328,39 @@ void HAPClient::processRequest(){
 
 //////////////////////////////////////
 
-int HAPClient::notFoundError(){
-
-  char s[]="HTTP/1.1 404 Not Found\r\n\r\n";
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+void HAPClient::httpError(const char *s){
+  
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(s);
   client.print(s);
   LOG2("------------ SENT! --------------\n");
   
   delay(1);
   client.stop();
+}
 
-  return(-1);
+//////////////////////////////////////
+
+int HAPClient::notFoundError(){
+
+  httpError("HTTP/1.1 404 Not Found\r\n\r\n");
+  return(-1);  
 }
 
 //////////////////////////////////////
 
 int HAPClient::badRequestError(){
 
-  char s[]="HTTP/1.1 400 Bad Request\r\n\r\n";
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
-  LOG2(s);
-  client.print(s);
-  LOG2("------------ SENT! --------------\n");
-  
-  delay(1);
-  client.stop();
-
-  return(-1);
+  httpError("HTTP/1.1 400 Bad Request\r\n\r\n");
+  return(-1);  
 }
 
 //////////////////////////////////////
 
 int HAPClient::unauthorizedError(){
 
-  char s[]="HTTP/1.1 470 Connection Authorization Required\r\n\r\n";
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
-  LOG2(s);
-  client.print(s);
-  LOG2("------------ SENT! --------------\n");
-  
-  delay(1);
-  client.stop();
-
-  return(-1);
+  httpError("HTTP/1.1 470 Connection Authorization Required\r\n\r\n");
+  return(-1);  
 }
 
 //////////////////////////////////////
@@ -844,7 +841,7 @@ int HAPClient::getAccessoriesURL(){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(body);
   LOG2(jBuf.get());
   LOG2("\n");
@@ -936,7 +933,7 @@ int HAPClient::postPairingsURL(){
       char *body;
       asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/pairing+tlv8\r\nContent-Length: %d\r\n\r\n",tBuf.len());      // create Body with Content Length = size of TLV data
   
-      LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+      LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
       LOG2(body);
       listControllers(tBuf.get());
       sendEncrypted(body,tBuf.get(),tBuf.len());
@@ -1018,7 +1015,7 @@ int HAPClient::getCharacteristicsURL(char *urlBuf){
   char *body;
   asprintf(&body,"HTTP/1.1 %s\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",!sFlag?"200 OK":"207 Multi-Status",nBytes);
     
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(body);
   LOG2(jsonBuf);
   LOG2("\n");
@@ -1057,7 +1054,7 @@ int HAPClient::putCharacteristicsURL(char *json){
     
     char body[]="HTTP/1.1 204 No Content\r\n\r\n";
     
-    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+    LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
     LOG2(body);  
 
     sendEncrypted(body,NULL,0);  
@@ -1071,7 +1068,7 @@ int HAPClient::putCharacteristicsURL(char *json){
     char *body;
     asprintf(&body,"HTTP/1.1 207 Multi-Status\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-    LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+    LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
     LOG2(body);
     LOG2(jsonBuf);
     LOG2("\n");
@@ -1126,7 +1123,7 @@ int HAPClient::putPrepareURL(char *json){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
   
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(body);
   LOG2(jsonBuf);
   LOG2("\n");
@@ -1257,7 +1254,7 @@ int HAPClient::getStatusURL(){
   
   response+="</body></html>";
 
-  LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(response);
   LOG2("\n");
   client.print(response);
@@ -1316,7 +1313,7 @@ void HAPClient::eventNotify(SpanBuf *pObj, int nObj, HAPClient *ignoreClient){
         char *body;
         asprintf(&body,"EVENT/1.0 200 OK\r\nContent-Type: application/hap+json\r\nContent-Length: %d\r\n\r\n",nBytes);
 
-        LOG2("\n<<<<<<<<< %s (%d) <<<<<<<<<\n",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
+        LOG2("\n<<<<<<<<< %s <<<<<<<<<\n",(*it).ipSocket.c_str());
         LOG2(body);
         LOG2(jsonBuf);
         LOG2("\n");
@@ -1370,7 +1367,7 @@ void HAPClient::tlvRespond(){
   char *body;
   asprintf(&body,"HTTP/1.1 200 OK\r\nContent-Type: application/pairing+tlv8\r\nContent-Length: %d\r\n\r\n",tBuf.len());      // create Body with Content Length = size of TLV data
   
-  LOG2("\n>>>>>>>>> %s (%d) >>>>>>>>>\n",client.remoteIP().toString().c_str(),client.fd()-LWIP_SOCKET_OFFSET+1);
+  LOG2("\n>>>>>>>>> %s >>>>>>>>>\n",ipSocket.c_str());
   LOG2(body);
   tlv8.print(2);
 
@@ -1605,7 +1602,7 @@ void HAPClient::tearDown(uint8_t *id){
 
   for(auto it=hapList.begin(); it!=hapList.end(); it++){
     if((*it).client && (id==NULL || ((*it).cPair && !memcmp(id,(*it).cPair->ID,36)))){
-      LOG1("=== Stopping Client Connection: %s (%d) ===\n",(*it).client.remoteIP().toString().c_str(),(*it).client.fd()-LWIP_SOCKET_OFFSET+1);
+      LOG1("=== Stopping Client Connection: %s ===\n",(*it).ipSocket.c_str());
       (*it).client.stop();
     }    
   }
