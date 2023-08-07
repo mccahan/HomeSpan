@@ -413,7 +413,7 @@ int HAPClient::postPairSetupURL(){
 
       tlv8.clear();
       tlv8.val(kTLVType_State,pairState_M2);            // set State=<M2>
-      srp.createPublicKey();                          // create accessory public key from random Pair-Setup code (displayed to user)
+      srp.createPublicKey();                          // create accessory public key from random 32 bytes combined with Pair-Setup code (displayed to user)
       srp.loadTLV(kTLVType_PublicKey,&srp.B,384);         // load server public key, B
       srp.loadTLV(kTLVType_Salt,&srp.s,16);              // load salt, s
       tlvRespond();                                   // send response to client
@@ -453,6 +453,7 @@ int HAPClient::postPairSetupURL(){
       tlv8.clear();                                         // clear TLV records
       tlv8.val(kTLVType_State,pairState_M4);                // set State=<M4>
       srp.loadTLV(kTLVType_Proof,&srp.M2,64);               // load M2 counter-proof
+      srp.clear();                                        // clear out remaining SRP data
       tlvRespond();                                       // send response to client
 
       pairStatus=pairState_M5;                            // set next expected pair-state request from client

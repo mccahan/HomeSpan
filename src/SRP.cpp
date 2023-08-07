@@ -36,21 +36,18 @@
 
 SRP6A::SRP6A(){
 
-  uint8_t tBuf[768];    // temporary buffer for staging
-  uint8_t tHash[64];    // temporary buffer for storing SHA-512 results
-
-  char N3072[]="FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74"
-               "020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437"
-               "4FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
-               "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF05"
-               "98DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB"
-               "9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
-               "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF695581718"
-               "3995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D04507A33"
-               "A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7"
-               "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6BF12FFA06D98A0864"
-               "D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E2"
-               "08E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
+//  const char N3072[]="FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74"
+//                     "020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437"
+//                     "4FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
+//                     "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF05"
+//                     "98DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB"
+//                     "9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
+//                     "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF695581718"
+//                     "3995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D04507A33"
+//                     "A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7"
+//                     "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6BF12FFA06D98A0864"
+//                     "D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E2"
+//                     "08E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
 
   // initialize MPI structures
   
@@ -76,25 +73,23 @@ SRP6A::SRP6A(){
 
   // load N and g into mpi structures
   
-  mbedtls_mpi_read_string(&N,16,N3072);
-  mbedtls_mpi_lset(&g,5);
 
-  // compute k = SHA512( N | PAD(g) )
-  
-  mbedtls_mpi_write_binary(&N,tBuf,384);          // write N into first half of staging buffer
-  mbedtls_mpi_write_binary(&g,tBuf+384,384);      // write g into second half of staging buffer (fully padded with leading zeros)
-  mbedtls_sha512_ret(tBuf,768,tHash,0);           // create hash of data
-  mbedtls_mpi_read_binary(&k,tHash,64);           // load hash result into mpi structure k
+}
 
+//////////////////////////////////////
+
+void SRP6A::clear(){
+
+  mbedtls_mpi_free(&M2);
 }
 
 //////////////////////////////////////
 
 void SRP6A::createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t *salt){
 
-  uint8_t tBuf[80];     // temporary buffer for staging 
-  uint8_t tHash[64];    // temporary buffer for storing SHA-512 results 
-  char icp[22];         // storage for I:P
+  TempBuffer<uint8_t> tBuf(80);    // temporary buffer for staging
+  TempBuffer<uint8_t> tHash(64);   // temporary buffer for storing SHA-512 results  
+  TempBuffer<char> icp(22);        // storage for I:P
 
   randombytes_buf(salt,16);                 // generate 16 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)    
   mbedtls_mpi_read_binary(&s,salt,16);
@@ -103,32 +98,53 @@ void SRP6A::createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t
 
   // compute x = SHA512( s | SHA512( I | ":" | P ) )
 
-  mbedtls_mpi_write_binary(&s,tBuf,16);                          // write s into first 16 bytes of staging buffer            
-  mbedtls_sha512_ret((uint8_t *)icp,strlen(icp),tBuf+16,0);      // create hash of username:password and write into last 64 bytes of staging buffer
-  mbedtls_sha512_ret(tBuf,80,tHash,0);                           // create second hash of salted, hashed username:password 
-  mbedtls_mpi_read_binary(&x,tHash,64);                          // load hash result into mpi structure x
+  mbedtls_mpi_write_binary(&s,tBuf,16);                             // write s into first 16 bytes of staging buffer            
+  mbedtls_sha512_ret((uint8_t *)icp.get(),strlen(icp),tBuf+16,0);   // create hash of username:password and write into last 64 bytes of staging buffer
+  mbedtls_sha512_ret(tBuf,80,tHash,0);                              // create second hash of salted, hashed username:password 
+  mbedtls_mpi_read_binary(&x,tHash,64);                             // load hash result into mpi structure x
 
   // compute v = g^x % N
-  
-  mbedtls_mpi_exp_mod(&v,&g,&x,&N,&_rr);                         // create verifier, v (_rr is an internal "helper" structure that mbedtls uses to speed up subsequent exponential calculations)
-  mbedtls_mpi_write_binary(&v,verifyCode,384);                   // write v into verifyCode
-  
+
+  mbedtls_mpi_read_string(&N,16,N3072);                       // load N
+  mbedtls_mpi_lset(&g,5);                                     // load g
+  mbedtls_mpi_exp_mod(&v,&g,&x,&N,&_rr);                      // create verifier, v (_rr is an internal "helper" structure that mbedtls uses to speed up subsequent exponential calculations)
+  mbedtls_mpi_write_binary(&v,verifyCode,384);                // write v into verifyCode
+
+  mbedtls_mpi_free(&x);
+  mbedtls_mpi_free(&N);
+  mbedtls_mpi_free(&g);
 }
 
 //////////////////////////////////////
 
-void SRP6A::loadVerifyCode(uint8_t *verifyCode, uint8_t *salt){
+void SRP6A::loadVerifyCode(const uint8_t *verifyCode, const uint8_t *salt){
   
   mbedtls_mpi_read_binary(&s,salt,16);
   mbedtls_mpi_read_binary(&v,verifyCode,384);
-
 }
 
 //////////////////////////////////////
 
 void SRP6A::createPublicKey(){
     
-  getPrivateKey();           // create and load b (random 32 bytes)
+  // create b = random private key
+
+  TempBuffer<uint8_t> privateKey(32);
+  
+  randombytes_buf(privateKey,32);                     // generate 32 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)
+  mbedtls_mpi_read_binary(&b,privateKey,32);
+
+  // compute k = SHA512( N | PAD(g) )
+
+  TempBuffer<uint8_t> tBuf(768);    // temporary buffer for staging
+  TempBuffer<uint8_t> tHash(64);    // temporary buffer for storing SHA-512 results
+
+  mbedtls_mpi_read_string(&N,16,N3072);           // load N
+  mbedtls_mpi_lset(&g,5);                         // load g
+  mbedtls_mpi_write_binary(&N,tBuf,384);          // write N into first half of staging buffer
+  mbedtls_mpi_write_binary(&g,tBuf+384,384);      // write g into second half of staging buffer (fully padded with leading zeros)
+  mbedtls_sha512_ret(tBuf,768,tHash,0);           // create hash of data
+  mbedtls_mpi_read_binary(&k,tHash,64);           // load hash result into mpi structure k
     
   // compute B = kv + g^b %N
   
@@ -137,24 +153,19 @@ void SRP6A::createPublicKey(){
   mbedtls_mpi_add_mpi(&t3,&t1,&t2);                   // t3 = t1 + t2
   mbedtls_mpi_mod_mpi(&B,&t3,&N);                     // B = t3 %N      = ACCESSORY PUBLIC KEY
 
-}
-
-//////////////////////////////////////
-
-void SRP6A::getPrivateKey(){
-
-  uint8_t privateKey[32];
-  
-  randombytes_buf(privateKey,32);                     // generate 32 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)
-  mbedtls_mpi_read_binary(&b,privateKey,32);
+  mbedtls_mpi_free(&g);
+  mbedtls_mpi_free(&t1);
+  mbedtls_mpi_free(&t2);
+  mbedtls_mpi_free(&t3);
+  mbedtls_mpi_free(&k);
 }
   
 //////////////////////////////////////
 
 void SRP6A::createSessionKey(){
 
-  uint8_t tBuf[768];    // temporary buffer for staging
-  uint8_t tHash[64];    // temporary buffer for storing SHA-512 results
+  TempBuffer<uint8_t> tBuf(768);    // temporary buffer for staging
+  TempBuffer<uint8_t> tHash(64);    // temporary buffer for storing SHA-512 results
 
   // compute u = SHA512( PAD(A) | PAD(B) )
   
@@ -177,17 +188,24 @@ void SRP6A::createSessionKey(){
   mbedtls_mpi_read_binary(&K,tHash,64);           // load hash result into mpi structure K.  This is the SRP SHARED SECRET KEY
 
   mbedtls_mpi_write_binary(&K,sharedSecret,64);   // store SHARED SECRET in easy-to-use binary (uint8_t) format
-  
+
+  mbedtls_mpi_free(&u);
+  mbedtls_mpi_free(&b);
+  mbedtls_mpi_free(&S);
+  mbedtls_mpi_free(&t1);
+  mbedtls_mpi_free(&t2);
+  mbedtls_mpi_free(&_rr);
+  mbedtls_mpi_free(&v);
 }
 
 //////////////////////////////////////
 
 int SRP6A::verifyProof(){
 
-  uint8_t tBuf[976];    // temporary buffer for staging
-  uint8_t tHash[64];    // temporary buffer for storing SHA-512 results
-
-  size_t count=0;                                // total number of bytes for final hash  
+  TempBuffer<uint8_t> tBuf(976);    // temporary buffer for staging
+  TempBuffer<uint8_t> tHash(64);    // temporary buffer for storing SHA-512 results
+  
+  size_t count=0;                   // total number of bytes for final hash  
   size_t sLen;
   
   mbedtls_mpi_write_binary(&N,tBuf,384);             // write N into staging buffer
@@ -214,18 +232,22 @@ int SRP6A::verifyProof(){
 
   mbedtls_sha512_ret(tBuf,count,tHash,0);             // create hash of data
   mbedtls_mpi_read_binary(&M1V,tHash,64);             // load hash result into mpi structure M1V
-  
-  if(!mbedtls_mpi_cmp_mpi(&M1,&M1V))                  // cmp_mpi uses same logic as strcmp: returns 0 if EQUAL, otherwise +/- 1
-    return(1);                                        // success - proof from HAP Client is verified
+
+  boolean success=!mbedtls_mpi_cmp_mpi(&M1,&M1V);     // cmp_mpi uses same logic as strcmp: returns 0 if EQUAL, otherwise +/- 1
+
+  mbedtls_mpi_free(&N);
+  mbedtls_mpi_free(&B);
+  mbedtls_mpi_free(&M1V);
+  mbedtls_mpi_free(&s);
     
-  return(0);
+  return(success);
 }
 
 //////////////////////////////////////
 
 void SRP6A::createProof(){
 
-  uint8_t tBuf[512];    // temporary buffer for staging
+  TempBuffer<uint8_t> tBuf(512);    // temporary buffer for staging
 
   // compute M2 = H( A | M1 | K )
   
@@ -234,12 +256,15 @@ void SRP6A::createProof(){
   mbedtls_mpi_write_binary(&K,tBuf+448,64);       // concatenate K to staging buffer
   mbedtls_sha512_ret(tBuf,512,tBuf,0);            // create hash of data
   mbedtls_mpi_read_binary(&M2,tBuf,64);           // load hash results into mpi structure M2
-  
+
+  mbedtls_mpi_free(&A);
+  mbedtls_mpi_free(&M1);
+  mbedtls_mpi_free(&K);
 }
 
 //////////////////////////////////////
 
-int SRP6A::loadTLV(kTLVType tag, mbedtls_mpi *mpi, int nBytes){
+int SRP6A::loadTLV(kTLVType tag, const mbedtls_mpi *mpi, int nBytes){
 
   uint8_t *buf=HAPClient::tlv8.buf(tag,nBytes);
 
@@ -270,13 +295,13 @@ void SRP6A::print(mbedtls_mpi *mpi, int minLogLevel){
 
   if(homeSpan.getLogLevel()<minLogLevel)
     return;
-      
-  char sBuf[2000];
+
+  TempBuffer<char> sBuf(2000);
   size_t sLen;
 
   mbedtls_mpi_write_string(mpi,16,sBuf,2000,&sLen);
   
-  Serial.printf("%d %s\n",(sLen-1)/2,sBuf);         // subtract 1 for null-terminator, and then divide by 2 to get number of bytes (e.g. 4F = 2 characters, but represents just one mpi byte)
+  Serial.printf("%d %s\n",(sLen-1)/2,sBuf.get());         // subtract 1 for null-terminator, and then divide by 2 to get number of bytes (e.g. 4F = 2 characters, but represents just one mpi byte)
 }
 
 //////////////////////////////////////

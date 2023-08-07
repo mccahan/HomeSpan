@@ -65,24 +65,37 @@ struct SRP6A {
 
   mbedtls_mpi _rr;        // _rr                          - temporary "helper" for large exponential modulus calculations
 
-  char I[11]="Pair-Setup";  // I                          - userName pre-defined by HAP pairing setup protocol
-  char g3072[2]="\x05";     // g                          - 3072-bit Group generator
+  const char *I ="Pair-Setup";   // I                    - userName pre-defined by HAP pairing setup protocol
+  const char *g3072 ="\x05";     // g                    - 3072-bit Group generator
+
+  const char *N3072 = "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74"
+                      "020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F1437"
+                      "4FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
+                      "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF05"
+                      "98DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB"
+                      "9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
+                      "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF695581718"
+                      "3995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D04507A33"
+                      "A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7"
+                      "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6BF12FFA06D98A0864"
+                      "D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E2"
+                      "08E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
 
   uint8_t sharedSecret[64];                        // permanent storage for binary version of SHARED SECRET KEY for ease of use upstream
 
   SRP6A();                                         // initializes N, G, and computes k
-  
+
+  void clear();
   void createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t *salt);
-  void loadVerifyCode(uint8_t *verifyCode, uint8_t *salt);
+  void loadVerifyCode(const uint8_t *verifyCode, const uint8_t *salt);
   
   void getSalt();                                  // generates and stores random 16-byte salt, s
-  void getPrivateKey();                            // generates and stores random 32-byte private key, b
   void getSetupCode(char *c);                      // generates and displays random 8-digit Pair-Setup code, P, in format XXX-XX-XXX
   void createPublicKey();                          // computes x, v, and B from random s, P, and b
   void createSessionKey();                         // computes u from A and B, and then S from A, v, u, and b
   
-  int loadTLV(kTLVType tag, mbedtls_mpi *mpi, int nBytes);     // load binary contents of mpi into a TLV record and set its length
-  int writeTLV(kTLVType tag, mbedtls_mpi *mpi);                // write binary contents of a TLV record into an mpi
+  int loadTLV(kTLVType tag, const mbedtls_mpi *mpi, int nBytes);     // load binary contents of mpi into a TLV record and set its length
+  int writeTLV(kTLVType tag, mbedtls_mpi *mpi);                      // write binary contents of a TLV record into an mpi
   
   int verifyProof();                               // verify M1 SRP6A Proof received from HAP client (return 1 on success, 0 on failure)
   void createProof();                              // create M2 server-side SRP6A Proof based on M1 as received from HAP Client
