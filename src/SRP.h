@@ -81,8 +81,6 @@ struct SRP6A {
                       "D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E2"
                       "08E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
 
-  uint8_t sharedSecret[64];                        // permanent storage for binary version of SHARED SECRET KEY for ease of use upstream
-
   SRP6A();                                         // initializes N, G, and computes k
 
   void clear();
@@ -96,6 +94,7 @@ struct SRP6A {
   
   int loadTLV(kTLVType tag, const mbedtls_mpi *mpi, int nBytes);     // load binary contents of mpi into a TLV record and set its length
   int writeTLV(kTLVType tag, mbedtls_mpi *mpi);                      // write binary contents of a TLV record into an mpi
+  void read(uint8_t *buf, const mbedtls_mpi *mpi, int nBytes);       // load binary contents of mpi into buf of length nBytes
   
   int verifyProof();                               // verify M1 SRP6A Proof received from HAP client (return 1 on success, 0 on failure)
   void createProof();                              // create M2 server-side SRP6A Proof based on M1 as received from HAP Client

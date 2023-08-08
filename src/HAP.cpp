@@ -58,10 +58,7 @@ void HAPClient::init(){
     uint8_t verifyCode[384];
   } verifyData;
  
-  if(!nvs_get_blob(srpNVS,"VERIFYDATA",NULL,&len)){                   // if found verification code data in NVS
-    nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);                  // retrieve data
-    srp.loadVerifyCode(verifyData.verifyCode,verifyData.salt);           // load verification code and salt into SRP structure
-  } else {
+  if(nvs_get_blob(srpNVS,"VERIFYDATA",NULL,&len)){                   // if verification code data does not exist in NVS
     LOG0("Generating SRP verification data for default Setup Code: %.3s-%.2s-%.3s\n",homeSpan.defaultSetupCode,homeSpan.defaultSetupCode+3,homeSpan.defaultSetupCode+5);
     srp.createVerifyCode(homeSpan.defaultSetupCode,verifyData.verifyCode,verifyData.salt);         // create verification code from default Setup Code and random salt
     nvs_set_blob(srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                           // update data
@@ -400,7 +397,7 @@ int HAPClient::postPairSetupURL(){
    
   switch(tlvState){          // valid and in-sequence Pair-Setup STATE received -- process request!  (HAP Section 5.6)
 
-    case pairState_M1:                     // 'SRP Start Request'
+    case pairState_M1: {                    // 'SRP Start Request'
 
       if(tlv8.val(kTLVType_Method)!=0){                       // error: "Pair Setup" method must always be 0 to indicate setup without MiFi Authentification (HAP Table 5-3)
         LOG0("\n*** ERROR: Pair Method not set to 0\n\n");
@@ -411,19 +408,28 @@ int HAPClient::postPairSetupURL(){
         return(0);
       };
 
+      struct {                                      // temporary structure to hold SRP verification code and salt stored in NVS
+        uint8_t salt[16];
+        uint8_t verifyCode[384];
+      } verifyData;
+
+      size_t len;
+  
       tlv8.clear();
-      tlv8.val(kTLVType_State,pairState_M2);            // set State=<M2>
-      srp.createPublicKey();                          // create accessory public key from random 32 bytes combined with Pair-Setup code (displayed to user)
+      tlv8.val(kTLVType_State,pairState_M2);                            // set State=<M2>
+      nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);               // retrieve previously-computed verification code and salt 
+      srp.loadVerifyCode(verifyData.verifyCode,verifyData.salt);        // load verification code and salt into SRP structure
+      srp.createPublicKey();                          // create accessory public key from random 32 bytes combined with verification code and salt
       srp.loadTLV(kTLVType_PublicKey,&srp.B,384);         // load server public key, B
       srp.loadTLV(kTLVType_Salt,&srp.s,16);              // load salt, s
       tlvRespond();                                   // send response to client
 
       pairStatus=pairState_M3;                        // set next expected pair-state request from client
       return(1);
-      
+    }  
     break;
 
-    case pairState_M3:                     // 'SRP Verify Request'
+    case pairState_M3: {                     // 'SRP Verify Request'
 
       if(!srp.writeTLV(kTLVType_PublicKey,&srp.A) ||    // try to write TLVs into mpi structures
          !srp.writeTLV(kTLVType_Proof,&srp.M1)){
@@ -453,15 +459,14 @@ int HAPClient::postPairSetupURL(){
       tlv8.clear();                                         // clear TLV records
       tlv8.val(kTLVType_State,pairState_M4);                // set State=<M4>
       srp.loadTLV(kTLVType_Proof,&srp.M2,64);               // load M2 counter-proof
-      srp.clear();                                        // clear out remaining SRP data
       tlvRespond();                                       // send response to client
 
       pairStatus=pairState_M5;                            // set next expected pair-state request from client
-      return(1);        
-        
+      return(1);            
+    }
     break;
     
-    case pairState_M5:                     // 'Exchange Request'
+    case pairState_M5: {                    // 'Exchange Request'
 
       if(!tlv8.len(kTLVType_EncryptedData)){            
         LOG0("\n*** ERROR: Required 'EncryptedData' TLV record for this step is bad or missing\n\n");
@@ -481,7 +486,11 @@ int HAPClient::postPairSetupURL(){
       // Note the SALT and INFO text fields used by HKDF to create this Session Key are NOT the same as those for creating iosDeviceX.
       // The iosDeviceX HKDF calculations are separate and will be performed further below with the SALT and INFO as specified in the HAP docs.
 
-      hkdf.create(sessionKey, srp.sharedSecret,64,"Pair-Setup-Encrypt-Salt","Pair-Setup-Encrypt-Info");       // create SessionKey
+      TempBuffer<uint8_t> sharedSecret(64);
+      srp.read(sharedSecret,&srp.K,64);
+      srp.clear();                                        // clear out remaining SRP data
+      
+      hkdf.create(sessionKey,sharedSecret,64,"Pair-Setup-Encrypt-Salt","Pair-Setup-Encrypt-Info");       // create SessionKey
 
       uint8_t decrypted[1024];                    // temporary storage for decrypted data
       unsigned long long decryptedLen;            // length (in bytes) of decrypted data
@@ -529,7 +538,7 @@ int HAPClient::postPairSetupURL(){
       // Note that the SALT and INFO text fields now match those in HAP Section 5.6.6.1
 
       uint8_t iosDeviceX[32];
-      hkdf.create(iosDeviceX,srp.sharedSecret,64,"Pair-Setup-Controller-Sign-Salt","Pair-Setup-Controller-Sign-Info");       // derive iosDeviceX from SRP Shared Secret using HKDF 
+      hkdf.create(iosDeviceX,sharedSecret,64,"Pair-Setup-Controller-Sign-Salt","Pair-Setup-Controller-Sign-Info");       // derive iosDeviceX from SRP Shared Secret using HKDF 
       size_t iosDeviceXLen=32;
 
       uint8_t *iosDevicePairingID = tlv8.buf(kTLVType_Identifier);        // set iosDevicePairingID from TLV record
@@ -562,7 +571,7 @@ int HAPClient::postPairSetupURL(){
       // Now perform the above steps in reverse to securely transmit the AccessoryLTPK to the Controller (HAP Section 5.6.6.2)
 
       uint8_t accessoryX[32];
-      hkdf.create(accessoryX,srp.sharedSecret,64,"Pair-Setup-Accessory-Sign-Salt","Pair-Setup-Accessory-Sign-Info");       // derive accessoryX from SRP Shared Secret using HKDF 
+      hkdf.create(accessoryX,sharedSecret,64,"Pair-Setup-Accessory-Sign-Salt","Pair-Setup-Accessory-Sign-Info");       // derive accessoryX from SRP Shared Secret using HKDF 
       size_t accessoryXLen=32;
       
       uint8_t *accessoryPairingID=accessory.ID;                    // set accessoryPairingID from storage
@@ -618,7 +627,7 @@ int HAPClient::postPairSetupURL(){
         homeSpan.pairCallback(true);
       
       return(1);        
-             
+    }             
     break;
 
   } // switch
