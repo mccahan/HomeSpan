@@ -36,6 +36,7 @@
 #include <esp_sntp.h>
 #include <esp_ota_ops.h>
 #include <esp_wifi.h>
+#include <mbedtls/sha512.h>
 
 #include "HomeSpan.h"
 #include "HAP.h"

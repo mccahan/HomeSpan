@@ -27,11 +27,9 @@
  
 #pragma once
 
-#include <mbedtls/sha512.h>
 #include <mbedtls/bignum.h>
-#include <mbedtls/base64.h>
 
-#include "HAPConstants.h"
+#include "TLV.h"
 
 /////////////////////////////////////////////////
 // SRP-6A Structure from RFC 5054 (Nov 2007)
@@ -81,7 +79,7 @@ struct SRP6A {
                       "D87602733EC86A64521F2B18177B200CBBE117577A615D6C770988C0BAD946E2"
                       "08E24FA074E5AB3143DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF";
 
-  SRP6A();                                         // initializes N, G, and computes k
+  SRP6A();                                         // initializes MPIs
 
   void clear();
   void createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t *salt);

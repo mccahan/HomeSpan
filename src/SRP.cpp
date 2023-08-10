@@ -28,6 +28,8 @@
 #include <sodium.h>
 #include <Arduino.h>
 
+#include <mbedtls/sha512.h>
+
 #include "SRP.h"
 #include "HAP.h"
 
@@ -56,18 +58,32 @@ SRP6A::SRP6A(){
   mbedtls_mpi_init(&_rr);
   mbedtls_mpi_init(&t1);
   mbedtls_mpi_init(&t2);
-  mbedtls_mpi_init(&t3);
-
-  // load N and g into mpi structures
-  
+  mbedtls_mpi_init(&t3);  
 }
 
 //////////////////////////////////////
 
 void SRP6A::clear(){
 
-  mbedtls_mpi_free(&M2);
+  mbedtls_mpi_free(&N);     
+  mbedtls_mpi_free(&g);
+  mbedtls_mpi_free(&s);
+  mbedtls_mpi_free(&x);
+  mbedtls_mpi_free(&v);
+  mbedtls_mpi_free(&A);
+  mbedtls_mpi_free(&b);
+  mbedtls_mpi_free(&B);
+  mbedtls_mpi_free(&S);
+  mbedtls_mpi_free(&k);
+  mbedtls_mpi_free(&u);
   mbedtls_mpi_free(&K);
+  mbedtls_mpi_free(&M1);
+  mbedtls_mpi_free(&M1V);
+  mbedtls_mpi_free(&M2);
+  mbedtls_mpi_free(&_rr);
+  mbedtls_mpi_free(&t1);
+  mbedtls_mpi_free(&t2);
+  mbedtls_mpi_free(&t3);
 }
 
 //////////////////////////////////////

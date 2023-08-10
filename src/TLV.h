@@ -27,309 +27,72 @@
  
 #pragma once
 
-template <class tagType, int maxTags>
+#include <Arduino.h>
+
+#define NUM_TLV_TAGS  11
+
+// HAP TLV Types (HAP Table 5-6)
+
+typedef enum {
+  kTLVType_Method=0x00,
+  kTLVType_Identifier=0x01,
+  kTLVType_Salt=0x02,
+  kTLVType_PublicKey=0x03,
+  kTLVType_Proof=0x04,
+  kTLVType_EncryptedData=0x05,
+  kTLVType_State=0x06,
+  kTLVType_Error=0x07,
+  kTLVType_RetryDelay=0x08,
+  kTLVType_Certificate=0x09,
+  kTLVType_Signature=0x0A,
+  kTLVType_Permissions=0x0B,
+  kTLVType_FragmentData=0x0C,
+  kTLVType_FragmentLast=0x0D,
+  kTLVType_Flags=0x13,
+  kTLVType_Separator=0xFF
+} kTLVType;
+
 class TLV {
 
-  int cLen;              // total number of bytes in all defined TLV records, including TAG and LEN (suitable for use as Content-Length in HTTP Body)
-  int numTags;           // actual number of tags defined
+  int cLen=0;            // total number of bytes in all defined TLV records, including TAG and LEN (suitable for use as Content-Length in HTTP Body)
   
   struct tlv_t {
-    tagType tag;         // TAG
+    kTLVType tag;        // TAG
     int len;             // LENGTH
     uint8_t *val;        // VALUE buffer
     int maxLen;          // maximum length of VALUE buffer
-    const char *name;          // abbreviated name of this TAG
+    const char *name;    // abbreviated name of this TAG
   };
 
-  tlv_t tlv[maxTags];           // pointer to array of TLV record structures
-  tlv_t *find(tagType tag);     // returns pointer to TLV record with matching TAG (or NULL if no match)
+  tlv_t tlv[NUM_TLV_TAGS]= {
+    {kTLVType_Separator,-1,NULL,0,"SEPARATOR"},
+    {kTLVType_State,-1,NULL,1,"STATE"},
+    {kTLVType_PublicKey,-1,NULL,384,"PUBKEY"},
+    {kTLVType_Method,-1,NULL,1,"METHOD"},
+    {kTLVType_Salt,-1,NULL,16,"SALT"},
+    {kTLVType_Error,-1,NULL,1,"ERROR"},
+    {kTLVType_Proof,-1,NULL,64,"PROOF"},
+    {kTLVType_EncryptedData,-1,NULL,1024,"ENC.DATA"},
+    {kTLVType_Signature,-1,NULL,64,"SIGNATURE"},
+    {kTLVType_Identifier,-1,NULL,64,"IDENTIFIER"},
+    {kTLVType_Permissions,-1,NULL,1,"PERMISSION"}
+  };
+  
+  tlv_t *find(kTLVType tag);      // returns pointer to TLV record with matching TAG (or NULL if no match)
 
 public:
 
   TLV();
-  
-  int create(tagType tag, int maxLen, const char *name);   // creates a new TLV record of type 'tag' with 'maxLen' bytes and display 'name'
-  
-  void clear();                             // clear all TLV structures
-  int val(tagType tag);                     // returns VAL for TLV with matching TAG (or -1 if no match)
-  int val(tagType tag, uint8_t val);        // sets and returns VAL for TLV with matching TAG (or -1 if no match)    
-  uint8_t *buf(tagType tag);                // returns VAL Buffer for TLV with matching TAG (or NULL if no match)
-  uint8_t *buf(tagType tag, int len);       // set length and returns VAL Buffer for TLV with matching TAG (or NULL if no match or if LEN>MAX)
-  uint8_t *buf(tagType tag, uint8_t *src, int len);       // copies len bytes of src into VAL buffer, and sets length to len, for TLV with matching TAG; returns VAL Buffer on success, or NULL if no match or if LEN>MAX  
-  int len(tagType tag);                     // returns LEN for TLV matching TAG (or 0 if TAG is found but LEN not yet set; -1 if no match at all)
-  void print(int minLogLevel=0);            // prints all defined TLVs (those with length>0), subject to specified minimum log level
-  int unpack(uint8_t *tlvBuf, int nBytes);  // unpacks nBytes of TLV content from single byte buffer into individual TLV records (return 1 on success, 0 if fail) 
-  int pack(uint8_t *tlvBuf);                // if tlvBuf!=NULL, packs all defined TLV records (LEN>0) into a single byte buffer, spitting large TLVs into separate 255-byte chunks.  Returns number of bytes (that would be) stored in buffer
+    
+  void clear();                                                 // clear all TLV structures
+  int val(kTLVType tag);                                        // returns VAL for TLV with matching TAG (or -1 if no match)
+  int val(kTLVType tag, uint8_t val);                           // sets and returns VAL for TLV with matching TAG (or -1 if no match)    
+  uint8_t *buf(kTLVType tag);                                   // returns VAL Buffer for TLV with matching TAG (or NULL if no match)
+  uint8_t *buf(kTLVType tag, size_t len);                       // set length and returns VAL Buffer for TLV with matching TAG (or NULL if no match, or if LEN>MAX, of if LEN=0)
+  uint8_t *buf(kTLVType tag, const uint8_t *src, size_t len);   // copies len bytes of src into VAL buffer, and sets length to len, for TLV with matching TAG; returns VAL Buffer on success (or NULL if no match, or if LEN>MAX, or if LEN=0)
+  int len(kTLVType tag);                                        // returns LEN for TLV matching TAG (or 0 if TAG is found but LEN not yet set; -1 if no match at all)
+  void print(int minLogLevel=0);                                // prints all defined TLVs (those with length>0), subject to specified minimum log level
+  int unpack(const uint8_t *tlvBuf, int nBytes);                // unpacks nBytes of TLV content from single byte buffer into individual TLV records (return 1 on success, 0 if fail) 
+  int pack(uint8_t *tlvBuf);                                    // if tlvBuf!=NULL, packs all defined TLV records (LEN>0) into a single byte buffer, spitting large TLVs into separate 255-byte chunks.  Returns number of bytes (that would be) stored in buffer
   
 }; // TLV
-
-//////////////////////////////////////
-// TLV contructor()
-
-template<class tagType, int maxTags>
-TLV<tagType, maxTags>::TLV(){
-  numTags=0;
-}
-
-//////////////////////////////////////
-// TLV create(tag, maxLen, name)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::create(tagType tag, int maxLen, const char *name){
-  
-  if(numTags==maxTags){
-    Serial.print("\n*** ERROR: Can't create new TLC tag type with name='");
-    Serial.print(name);
-    Serial.print("' - exceeded number of records reserved\n\n");
-    return(0);
-  }
-
-  tlv[numTags].tag=tag;
-  tlv[numTags].maxLen=maxLen;
-  tlv[numTags].name=name;
-  tlv[numTags].len=-1;
-  tlv[numTags].val=(uint8_t *)malloc(maxLen);
-  numTags++;
-
-  return(1);
-}
-
-//////////////////////////////////////
-// TLV find(tag)
-
-template<class tagType, int maxTags>
-typename TLV<tagType, maxTags>::tlv_t *TLV<tagType, maxTags>::find(tagType tag){
-
-  for(int i=0;i<numTags;i++){
-    if(tlv[i].tag==tag)
-      return(tlv+i);
-  }
-  
-  return(NULL);
-}
-
-//////////////////////////////////////
-// TLV clear()
-
-template<class tagType, int maxTags>
-void TLV<tagType, maxTags>::clear(){
-
-  cLen=0;
-
-  for(int i=0;i<numTags;i++)
-    tlv[i].len=-1;
-
-}
-
-//////////////////////////////////////
-// TLV val(tag)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::val(tagType tag){
-
-  tlv_t *tlv=find(tag);
-
-  if(tlv && tlv->len>=0){
-    if(tlv->maxLen>0)
-      return(tlv->val[0]);
-    else
-      return(0);
-  }
-
-  return(-1);
-}
-
-//////////////////////////////////////
-// TLV val(tag, val)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::val(tagType tag, uint8_t val){
-
-  tlv_t *tlv=find(tag);
-  
-  if(tlv){
-    if(tlv->maxLen>0)
-      tlv->val[0]=val;
-    tlv->len=(tlv->maxLen>0);
-    cLen+=tlv->len+2;
-    return(val);
-  }
-  
-  return(-1);
-}
-
-//////////////////////////////////////
-// TLV buf(tag)
-
-template<class tagType, int maxTags>
-uint8_t *TLV<tagType, maxTags>::buf(tagType tag){
-
-  tlv_t *tlv=find(tag);
-
-  if(tlv)
-    return(tlv->val);
-    
-  return(NULL);
-}
-
-//////////////////////////////////////
-// TLV buf(tag, len)
-
-template<class tagType, int maxTags>
-uint8_t *TLV<tagType, maxTags>::buf(tagType tag, int len){
-
-  return(buf(tag,NULL,len));
-}
-
-//////////////////////////////////////
-// TLV buf(tag, src, len)
-
-template<class tagType, int maxTags>
-uint8_t *TLV<tagType, maxTags>::buf(tagType tag, uint8_t *src, int len){
-
-  tlv_t *tlv=find(tag);
-  
-  if(tlv && len<=tlv->maxLen){
-    tlv->len=len;
-    cLen+=tlv->len;
-
-    for(int i=0;i<tlv->len;i+=255)
-      cLen+=2;
-
-    if(src)
-      memcpy(tlv->val,src,len);
-      
-    return(tlv->val);
-  }
-  
-  return(NULL);
-}
-
-//////////////////////////////////////
-// TLV print()
-
-template<class tagType, int maxTags>
-void TLV<tagType, maxTags>::print(int minLogLevel){
-
-  if(homeSpan.getLogLevel()<minLogLevel)
-    return;
-    
-  for(int i=0;i<numTags;i++){
-    
-    if(tlv[i].len>=0){
-      Serial.printf("%s(%d) ",tlv[i].name,tlv[i].len);
-      
-      for(int j=0;j<tlv[i].len;j++)
-        Serial.printf("%02X",tlv[i].val[j]);
-
-      Serial.printf("\n");
-
-    } // len>0
-  } // loop over all TLVs
-}    
-
-//////////////////////////////////////
-// TLV pack(tlvBuf)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::pack(uint8_t *tlvBuf){
-
-  int n=0;
-  int nBytes;
-
-  for(int i=0;i<numTags;i++){     
-    
-    if((nBytes=tlv[i].len)>=0){
-      int j=0;
-      do{
-        int wBytes=nBytes>255?255:nBytes;
-        if(tlvBuf!=NULL){
-          *tlvBuf++=tlv[i].tag;
-          *tlvBuf++=wBytes;
-          memcpy(tlvBuf,tlv[i].val+j,wBytes);
-          tlvBuf+=wBytes;
-        }
-        n+=wBytes+2;
-        j+=wBytes;
-        nBytes-=wBytes;      
-      } while(nBytes>0);
-    } // len>=0
-    
-  } // loop over all TLVs
-
-return(n);  
-}
-
-//////////////////////////////////////
-// TLV len(tag)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::len(tagType tag){
-  
-  tlv_t *tlv=find(tag);
-
-  if(tlv)
-    return(tlv->len>0?tlv->len:0);
-    
-  return(-1);
-}
-
-//////////////////////////////////////
-// TLV unpack(tlvBuf, nBytes)
-
-template<class tagType, int maxTags>
-int TLV<tagType, maxTags>::unpack(uint8_t *tlvBuf, int nBytes){
-
-  clear();
-
-  tagType tag;
-  int tagLen;
-  uint8_t *val;
-  int currentLen;
-  int state=0;
-
-  for(int i=0;i<nBytes;i++){
-    
-    switch(state){
-      
-      case 0:                                     // ready to read next tag
-        if((tag=(tagType)tlvBuf[i])==-1){         // read TAG; return with error if not found
-          clear();
-          return(0);
-        }
-        state=1;
-      break;
-
-      case 1:                                     // ready to read tag length
-        tagLen=tlvBuf[i];                         // read LEN
-        currentLen=len(tag);                      // get current length of existing tag
-        if(!(val=buf(tag,tagLen+currentLen))){    // get VAL Buffer for TAG and set LEN (returns NULL if LEN > maxLen)
-          clear();
-          return(0);
-        }
-
-        val+=currentLen;                          // move val to end of current length (tag repeats to load more than 255 bytes)
-          
-        if(tagLen==0)                             // no bytes to read
-          state=0;
-        else                                      // move to next state
-          state=2;
-      break;
-
-      case 2:                                     // ready to read another byte into VAL
-        *val=tlvBuf[i];                           // copy byte into VAL buffer
-        val++;                                    // increment VAL buffer (already checked for sufficient length above)
-        tagLen--;                                 // decrement number of bytes to continue copying
-        if(tagLen==0)                             // no more bytes to copy
-          state=0;
-      break;
-
-    } // switch
-  } // for-loop
-
-  if(state==0)            // should always end back in state=0
-    return(1);            // return success
-
-  clear();
-  return(0);              // return fail
-}

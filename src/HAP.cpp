@@ -109,18 +109,6 @@ void HAPClient::init(){
 
   printControllers();                                                         
 
-  tlv8.create(kTLVType_Separator,0,"SEPARATOR");   // define the actual TLV records needed for the implementation of HAP; one for each kTLVType needed (HAP Table 5-6)
-  tlv8.create(kTLVType_State,1,"STATE");
-  tlv8.create(kTLVType_PublicKey,384,"PUBKEY");
-  tlv8.create(kTLVType_Method,1,"METHOD");
-  tlv8.create(kTLVType_Salt,16,"SALT");
-  tlv8.create(kTLVType_Error,1,"ERROR");
-  tlv8.create(kTLVType_Proof,64,"PROOF");
-  tlv8.create(kTLVType_EncryptedData,1024,"ENC.DATA");
-  tlv8.create(kTLVType_Signature,64,"SIGNATURE");
-  tlv8.create(kTLVType_Identifier,64,"IDENTIFIER");
-  tlv8.create(kTLVType_Permissions,1,"PERMISSION");
-
   if(!nvs_get_blob(hapNVS,"HAPHASH",NULL,&len)){                 // if found HAP HASH structure
     nvs_get_blob(hapNVS,"HAPHASH",&homeSpan.hapConfig,&len);     // retrieve data    
   } else {
@@ -608,7 +596,7 @@ int HAPClient::postPairSetupURL(){
       
       unsigned long long edLen;
 
-      crypto_aead_chacha20poly1305_ietf_encrypt(tlv8.buf(kTLVType_EncryptedData),&edLen,subTLV,subTLVLen,NULL,0,NULL,(unsigned char *)"\x00\x00\x00\x00PS-Msg06",sessionKey);
+      crypto_aead_chacha20poly1305_ietf_encrypt(tlv8.buf(kTLVType_EncryptedData,subTLVLen+crypto_aead_chacha20poly1305_IETF_ABYTES),&edLen,subTLV,subTLVLen,NULL,0,NULL,(unsigned char *)"\x00\x00\x00\x00PS-Msg06",sessionKey);
                                               
       LOG2("---------- END SUB-TLVS! ----------\n");
 
@@ -618,7 +606,7 @@ int HAPClient::postPairSetupURL(){
       tlvRespond();                        // send response to client
 
       mdns_service_txt_item_set("_hap","_tcp","sf","0");           // broadcast new status
-      
+        
       LOG1("\n*** ACCESSORY PAIRED! ***\n");
 
       STATUS_UPDATE(on(),HS_PAIRED)      
@@ -715,7 +703,7 @@ int HAPClient::postPairVerifyURL(){
 
         hkdf.create(sessionKey,sharedCurveKey,32,"Pair-Verify-Encrypt-Salt","Pair-Verify-Encrypt-Info");       // create SessionKey (32 bytes)
 
-        crypto_aead_chacha20poly1305_ietf_encrypt(tlv8.buf(kTLVType_EncryptedData),&edLen,subTLV,subTLVLen,NULL,0,NULL,(unsigned char *)"\x00\x00\x00\x00PV-Msg02",sessionKey);
+        crypto_aead_chacha20poly1305_ietf_encrypt(tlv8.buf(kTLVType_EncryptedData,subTLVLen+crypto_aead_chacha20poly1305_IETF_ABYTES),&edLen,subTLV,subTLVLen,NULL,0,NULL,(unsigned char *)"\x00\x00\x00\x00PV-Msg02",sessionKey);
                                               
         LOG2("---------- END SUB-TLVS! ----------\n");
         
@@ -1717,7 +1705,7 @@ void Nonce::inc(){
 
 // instantiate all static HAP Client structures and data
 
-TLV<kTLVType,11> HAPClient::tlv8;
+TLV HAPClient::tlv8;
 nvs_handle HAPClient::hapNVS;
 nvs_handle HAPClient::srpNVS;
 HKDF HAPClient::hkdf;                                   
