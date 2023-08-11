@@ -29,8 +29,6 @@
 
 #include <mbedtls/bignum.h>
 
-#include "TLV.h"
-
 /////////////////////////////////////////////////
 // SRP-6A Structure from RFC 5054 (Nov 2007)
 // ** HAP uses N=3072-bit Group specified in RFC 5054
@@ -82,21 +80,11 @@ struct SRP6A {
   SRP6A();                                         // initializes MPIs
 
   void clear();
-  void createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t *salt);
-  void loadVerifyCode(const uint8_t *verifyCode, const uint8_t *salt);
-  
-  void getSalt();                                  // generates and stores random 16-byte salt, s
-  void getSetupCode(char *c);                      // generates and displays random 8-digit Pair-Setup code, P, in format XXX-XX-XXX
-  void createPublicKey();                          // computes x, v, and B from random s, P, and b
-  void createSessionKey();                         // computes u from A and B, and then S from A, v, u, and b
-  
-  int loadTLV(kTLVType tag, const mbedtls_mpi *mpi, int nBytes);     // load binary contents of mpi into a TLV record and set its length
-  int writeTLV(kTLVType tag, mbedtls_mpi *mpi);                      // write binary contents of a TLV record into an mpi
-  void read(uint8_t *buf, const mbedtls_mpi *mpi, int nBytes);       // load binary contents of mpi into buf of length nBytes
-  
-  int verifyProof();                               // verify M1 SRP6A Proof received from HAP client (return 1 on success, 0 on failure)
-  void createProof();                              // create M2 server-side SRP6A Proof based on M1 as received from HAP Client
-
-  void print(mbedtls_mpi *mpi, int minLogLevel=0);   // prints size of mpi (in bytes), followed by the mpi itself (as a hex charcter string), subject to specified minimum log level
-  
+  void createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t *salt);  
 };
+
+//////////////////////////////////////
+
+extern SRP6A SRP;
+
+//////////////////////////////////////

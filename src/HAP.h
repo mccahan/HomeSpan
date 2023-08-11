@@ -33,7 +33,6 @@
 #include "TLV.h"
 #include "HAPConstants.h"
 #include "HKDF.h"
-#include "SRP.h"
 
 /////////////////////////////////////////////////
 // NONCE Structure (HAP used last 64 of 96 bits)
@@ -92,7 +91,6 @@ struct HAPClient {
   static nvs_handle srpNVS;                           // handle for non-volatile-storage of SRP data
   static HKDF hkdf;                                   // generates (and stores) HKDF-SHA-512 32-byte keys derived from an inputKey of arbitrary length, a salt string, and an info string
   static pairState pairStatus;                        // tracks pair-setup status
-  static SRP6A srp;                                   // stores all SRP-6A keys used for Pair-Setup
   static Accessory accessory;                         // Accessory ID and Ed25519 public and secret keys- permanently stored
   static list<Controller> controllerList;             // linked-list of Paired Controller IDs and ED25519 long-term public keys - permanently stored
   static HAPClient *currentClient;                    // pointer to currently active HAP Client

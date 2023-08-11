@@ -37,54 +37,6 @@ String mask(char *c, int n);          // simply utility that creates a String fr
   
 }
 
-/////////////////////////////////////////////////
-// Creates a temporary buffer that is freed after
-// going out of scope
-
-template <class bufType>
-class TempBuffer {
-
-  private:
-  
-  bufType *buf;
-  int nBytes;
-  int nElements;
-
-  public:
-  
-  TempBuffer(int _nElements) : nElements(_nElements) {
-    nBytes=nElements*sizeof(bufType);
-    buf=(bufType *)malloc(nBytes);
-    if(buf==NULL){
-      Serial.print("\n\n*** FATAL ERROR: Requested allocation of ");
-      Serial.print(nBytes);
-      Serial.print(" bytes failed.  Program Halting.\n\n");
-      while(1);
-    }
-   }
-
-  ~TempBuffer(){
-    free(buf);
-  }
-
-  int len(){
-    return(nBytes);
-  }
-
-  int size(){
-    return(nElements);
-  }
-
-  bufType *get(){
-    return(buf);
-  }
-
-  operator bufType*(){
-    return(buf);
-  }
-  
-};
-
 ////////////////////////////////
 //         PushButton         //
 ////////////////////////////////

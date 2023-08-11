@@ -52,6 +52,7 @@
 #include "HAPConstants.h"
 #include "HapQR.h"
 #include "Characteristics.h"
+#include "TempBuf.h"
 
 using std::vector;
 using std::unordered_map;

@@ -40,6 +40,8 @@
 
 #include "HomeSpan.h"
 #include "HAP.h"
+#include "SRP.h"
+#include "TempBuf.h"
 
 const __attribute__((section(".rodata_custom_desc"))) SpanPartition spanPartition = {HOMESPAN_MAGIC_COOKIE,0};
 
@@ -518,7 +520,7 @@ void Span::processSerialCommand(const char *c){
 
     case 'Z': {
       Serial.printf("Clearing MPI records...\n");
-      HAPClient::srp.clear();
+      SRP.clear();
     }
     break;
 
@@ -638,7 +640,7 @@ void Span::processSerialCommand(const char *c){
       } else {
         
         LOG0("\nGenerating SRP verification data for new Setup Code: %.3s-%.2s-%.3s ... ",setupCode,setupCode+3,setupCode+5);
-        HAPClient::srp.createVerifyCode(setupCode,verifyData.verifyCode,verifyData.salt);                         // create verification code from specified Setup Code and random salt
+        SRP.createVerifyCode(setupCode,verifyData.verifyCode,verifyData.salt);                         // create verification code from specified Setup Code and random salt
         nvs_set_blob(HAPClient::srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                              // update data
         nvs_commit(HAPClient::srpNVS);                                                                            // commit to NVS
         LOG0("New Code Saved!\n");

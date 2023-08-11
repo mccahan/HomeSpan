@@ -30,6 +30,7 @@
 #include "Network.h"
 #include "HomeSpan.h"
 #include "Utils.h"
+#include "TempBuf.h"
 
 using namespace Utils;
 

@@ -29,8 +29,11 @@
 #include <sodium.h>
 #include <MD5Builder.h>
 #include <mbedtls/version.h>
+#include <mbedtls/sha512.h>
 
 #include "HAP.h"
+#include "SRP.h"
+#include "TempBuf.h"
 
 //////////////////////////////////////
 
@@ -60,7 +63,7 @@ void HAPClient::init(){
  
   if(nvs_get_blob(srpNVS,"VERIFYDATA",NULL,&len)){                   // if verification code data does not exist in NVS
     LOG0("Generating SRP verification data for default Setup Code: %.3s-%.2s-%.3s\n",homeSpan.defaultSetupCode,homeSpan.defaultSetupCode+3,homeSpan.defaultSetupCode+5);
-    srp.createVerifyCode(homeSpan.defaultSetupCode,verifyData.verifyCode,verifyData.salt);         // create verification code from default Setup Code and random salt
+    SRP.createVerifyCode(homeSpan.defaultSetupCode,verifyData.verifyCode,verifyData.salt);         // create verification code from default Setup Code and random salt
     nvs_set_blob(srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                           // update data
     nvs_commit(srpNVS);                                                                         // commit to NVS
     LOG0("Setup Payload for Optional QR Code: %s\n\n",homeSpan.qrCode.get(atoi(homeSpan.defaultSetupCode),homeSpan.qrID,atoi(homeSpan.category)));
@@ -217,7 +220,8 @@ void HAPClient::processRequest(){
        tlv8.print(2);                                                        // print TLV records in form "TAG(INT) LENGTH(INT) VALUES(HEX)"
       LOG2("------------ END TLVS! ------------\n");
                
-      postPairSetupURL();                   // process URL
+      if(!postPairSetupURL())               // process URL
+        SRP.clear();                        // if fail, clear all SRP data      
       return;
     }
 
@@ -362,24 +366,24 @@ int HAPClient::postPairSetupURL(){
     return(0);
   }
 
-  if(nAdminControllers()){                              // error: Device already paired (i.e. there is at least one admin Controller). We should not be receiving any requests for Pair-Setup!
+  if(nAdminControllers()){                                    // error: Device already paired (i.e. there is at least one admin Controller). We should not be receiving any requests for Pair-Setup!
     LOG0("\n*** ERROR: Device already paired!\n\n");
-    tlv8.clear();                                         // clear TLV records
-    tlv8.val(kTLVType_State,tlvState+1);                  // set response STATE to requested state+1 (which should match the state that was expected by the controller)
-    tlv8.val(kTLVType_Error,tagError_Unavailable);       // set Error=Unavailable
-    tlvRespond();                                       // send response to client
+    tlv8.clear();                                             // clear TLV records
+    tlv8.val(kTLVType_State,tlvState+1);                      // set response STATE to requested state+1 (which should match the state that was expected by the controller)
+    tlv8.val(kTLVType_Error,tagError_Unavailable);            // set Error=Unavailable
+    tlvRespond();                                             // send response to client
     return(0);
   };
 
   LOG1("Found <M%d>.  Expected <M%d>\n",tlvState,pairStatus);
 
-  if(tlvState!=pairStatus){                             // error: Device is not yet paired, but out-of-sequence pair-setup STATE was received
+  if(tlvState!=pairStatus){                                         // error: Device is not yet paired, but out-of-sequence pair-setup STATE was received
     LOG0("\n*** ERROR: Out-of-Sequence Pair-Setup request!\n\n");
-    tlv8.clear();                                         // clear TLV records
-    tlv8.val(kTLVType_State,tlvState+1);                  // set response STATE to requested state+1 (which should match the state that was expected by the controller)
-    tlv8.val(kTLVType_Error,tagError_Unknown);           // set Error=Unknown (there is no specific error type for out-of-sequence steps)
-    tlvRespond();                                       // send response to client
-    pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired accessory (M1)
+    tlv8.clear();                                                   // clear TLV records
+    tlv8.val(kTLVType_State,tlvState+1);                            // set response STATE to requested state+1 (which should match the state that was expected by the controller)
+    tlv8.val(kTLVType_Error,tagError_Unknown);                      // set Error=Unknown (there is no specific error type for out-of-sequence steps)
+    tlvRespond();                                                   // send response to client
+    pairStatus=pairState_M1;                                        // reset pairStatus to first step of unpaired accessory (M1)
     return(0);
   };
    
@@ -391,10 +395,12 @@ int HAPClient::postPairSetupURL(){
         LOG0("\n*** ERROR: Pair Method not set to 0\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M2);                // set State=<M2>
-        tlv8.val(kTLVType_Error,tagError_Unavailable);       // set Error=Unavailable
-        tlvRespond();                                       // send response to client
+        tlv8.val(kTLVType_Error,tagError_Unavailable);        // set Error=Unavailable
+        tlvRespond();                                         // send response to client
         return(0);
       };
+
+      // Create Public Key for Accessory
 
       struct {                                      // temporary structure to hold SRP verification code and salt stored in NVS
         uint8_t salt[16];
@@ -402,16 +408,49 @@ int HAPClient::postPairSetupURL(){
       } verifyData;
 
       size_t len;
-  
-      tlv8.clear();
-      tlv8.val(kTLVType_State,pairState_M2);                            // set State=<M2>
-      nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);               // retrieve previously-computed verification code and salt 
-      srp.loadVerifyCode(verifyData.verifyCode,verifyData.salt);        // load verification code and salt into SRP structure
-      srp.createPublicKey();                          // create accessory public key from random 32 bytes combined with verification code and salt
-      srp.loadTLV(kTLVType_PublicKey,&srp.B,384);         // load server public key, B
-      srp.loadTLV(kTLVType_Salt,&srp.s,16);              // load salt, s
-      tlvRespond();                                   // send response to client
+      nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);               // retrieve stored verification code and salt
+      
+      mbedtls_mpi_read_binary(&SRP.s,verifyData.salt,16);
+      mbedtls_mpi_read_binary(&SRP.v,verifyData.verifyCode,384);
 
+      TempBuffer<uint8_t> privateKey(32);             // create b = random private key              
+      randombytes_buf(privateKey,32);
+
+      mbedtls_mpi_read_binary(&SRP.b,privateKey,32);
+
+      // compute k = SHA512( N | PAD(g) )
+    
+      TempBuffer<uint8_t> tBuf(768);                  // temporary buffer for staging
+      TempBuffer<uint8_t> tHash(64);                  // temporary buffer for storing SHA-512 results
+    
+      mbedtls_mpi_read_string(&SRP.N,16,SRP.N3072);   // load N
+
+      mbedtls_mpi_lset(&SRP.g,5);                     // load g
+
+      mbedtls_mpi_write_binary(&SRP.N,tBuf,384);      // write N into first half of staging buffer
+      mbedtls_mpi_write_binary(&SRP.g,tBuf+384,384);  // write g into second half of staging buffer (fully padded with leading zeros)
+      mbedtls_sha512_ret(tBuf,768,tHash,0);           // create hash of data
+      mbedtls_mpi_read_binary(&SRP.k,tHash,64);       // load hash result into mpi structure k
+        
+      // compute B = kv + g^b %N
+      
+      mbedtls_mpi_mul_mpi(&SRP.t1,&SRP.k,&SRP.v);                     // t1 = k*v
+      mbedtls_mpi_exp_mod(&SRP.t2,&SRP.g,&SRP.b,&SRP.N,&SRP._rr);     // t2 = g^b %N
+      mbedtls_mpi_add_mpi(&SRP.t3,&SRP.t1,&SRP.t2);                   // t3 = t1 + t2
+      mbedtls_mpi_mod_mpi(&SRP.B,&SRP.t3,&SRP.N);                     // B = t3 %N
+
+      tlv8.clear();
+      tlv8.val(kTLVType_State,pairState_M2);                                   // set State=<M2>
+      mbedtls_mpi_write_binary(&SRP.B,tlv8.buf(kTLVType_PublicKey,384),384);   // set PublicKey = B
+      mbedtls_mpi_write_binary(&SRP.s,tlv8.buf(kTLVType_Salt,16),16);          // set Salt = s
+      tlvRespond();                                                            // send response to client
+
+      mbedtls_mpi_free(&SRP.g);
+      mbedtls_mpi_free(&SRP.k);
+      mbedtls_mpi_free(&SRP.t1);
+      mbedtls_mpi_free(&SRP.t2);
+      mbedtls_mpi_free(&SRP.t3);
+      
       pairStatus=pairState_M3;                        // set next expected pair-state request from client
       return(1);
     }  
@@ -419,35 +458,112 @@ int HAPClient::postPairSetupURL(){
 
     case pairState_M3: {                     // 'SRP Verify Request'
 
-      if(!srp.writeTLV(kTLVType_PublicKey,&srp.A) ||    // try to write TLVs into mpi structures
-         !srp.writeTLV(kTLVType_Proof,&srp.M1)){
-            
+      if(tlv8.len(kTLVType_PublicKey)!=384 || tlv8.len(kTLVType_Proof)!=64){            
         LOG0("\n*** ERROR: One or both of the required 'PublicKey' and 'Proof' TLV records for this step is bad or missing\n\n");
-        tlv8.clear();                                         // clear TLV records
-        tlv8.val(kTLVType_State,pairState_M4);                // set State=<M4>
-        tlv8.val(kTLVType_Error,tagError_Unknown);           // set Error=Unknown (there is no specific error type for missing/bad TLV data)
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.clear();                                           // clear TLV records
+        tlv8.val(kTLVType_State,pairState_M4);                  // set State=<M4>
+        tlv8.val(kTLVType_Error,tagError_Unknown);              // set Error=Unknown (there is no specific error type for missing/bad TLV data)
+        tlvRespond();                                           // send response to client
+        pairStatus=pairState_M1;                                // reset pairStatus to first step of unpaired
         return(0);
       };
 
-      srp.createSessionKey();                               // create session key, K, from receipt of HAP Client public key, A
+      // Create session key, K, from receipt of HAP Client Public Key, A
 
-      if(!srp.verifyProof()){                               // verify proof, M1, received from HAP Client
+      TempBuffer<uint8_t> tBuf(976);    // temporary buffer for staging
+      TempBuffer<uint8_t> tHash(64);    // temporary buffer for storing SHA-512 results
+
+      mbedtls_mpi_read_binary(&SRP.A,tlv8.buf(kTLVType_PublicKey),384);     // set A = PublicKey
+      mbedtls_mpi_read_binary(&SRP.M1,tlv8.buf(kTLVType_Proof),64);         // set M1 = Proof
+
+      // compute u = SHA512( PAD(A) | PAD(B) )
+  
+      mbedtls_mpi_write_binary(&SRP.A,tBuf,384);        // write A into first half of staging buffer
+      mbedtls_mpi_write_binary(&SRP.B,tBuf+384,384);    // write B into second half of staging buffer
+      mbedtls_sha512_ret(tBuf,768,tHash,0);             // create hash of data
+      mbedtls_mpi_read_binary(&SRP.u,tHash,64);         // load hash result into mpi structure u
+
+      // compute S = (Av^u)^b %N
+
+      mbedtls_mpi_exp_mod(&SRP.t1,&SRP.v,&SRP.u,&SRP.N,&SRP._rr);   // t1 = v^u %N
+      mbedtls_mpi_mul_mpi(&SRP.t2,&SRP.A,&SRP.t1);                  // t2 = A*t1
+      mbedtls_mpi_mod_mpi(&SRP.t1,&SRP.t2,&SRP.N);                  // t1 = t2 %N  (this is needed to reduce size of t2 before next calculation)
+      mbedtls_mpi_exp_mod(&SRP.S,&SRP.t1,&SRP.b,&SRP.N,&SRP._rr);   // S = t1^b %N
+
+      // compute K = SHA512( S )
+  
+      mbedtls_mpi_write_binary(&SRP.S,tBuf,384);    // write S into staging buffer (only first half of buffer will be used)
+      mbedtls_sha512_ret(tBuf,384,tHash,0);         // create hash of data
+      mbedtls_mpi_read_binary(&SRP.K,tHash,64);     // load hash result into mpi structure K.  This is the SRP SHARED SECRET KEY
+    
+      mbedtls_mpi_free(&SRP.u);
+      mbedtls_mpi_free(&SRP.b);
+      mbedtls_mpi_free(&SRP.S);
+      mbedtls_mpi_free(&SRP.t1);
+      mbedtls_mpi_free(&SRP.t2);
+      mbedtls_mpi_free(&SRP._rr);
+      mbedtls_mpi_free(&SRP.v);
+  
+      size_t count=0;                                     // total number of bytes for final hash  
+      size_t sLen;
+  
+      mbedtls_mpi_write_binary(&SRP.N,tBuf,384);          // write N into staging buffer
+      mbedtls_sha512_ret(tBuf,384,tHash,0);               // create hash of data
+      mbedtls_sha512_ret((uint8_t *)SRP.g3072,1,tBuf,0);  // create hash of g, but place output directly into staging buffer
+
+      for(int i=0;i<64;i++)                               // H(g) ->  H(g) XOR H(N), with results in first 64 bytes of staging buffer
+        tBuf[i]^=tHash[i];
+ 
+      mbedtls_sha512_ret((uint8_t *)SRP.I,strlen(SRP.I),tBuf+64,0);     // create hash of userName and concatenate result to end of staging buffer
+
+      mbedtls_mpi_write_binary(&SRP.s,tBuf+128,16);           // concatenate s to staging buffer
+  
+      sLen=mbedtls_mpi_size(&SRP.A);                          // get actual size of A  
+      mbedtls_mpi_write_binary(&SRP.A,tBuf+144,sLen);         // concatenate A to staging buffer.  Note A is NOT padded with leading zeros (so may be less than 384 bytes)
+      count=144+sLen;                                         // total bytes written to staging buffer so far
+  
+      sLen=mbedtls_mpi_size(&SRP.B);                          // get actual size of B  
+      mbedtls_mpi_write_binary(&SRP.B,tBuf+count,sLen);       // concatenate B to staging buffer.  Note B is NOT padded with leading zeros (so may be less than 384 bytes)
+      count+=sLen;                                            // increment total bytes written to staging buffer
+    
+      mbedtls_mpi_write_binary(&SRP.K,tBuf+count,64);         // concatenate K to staging buffer (should always be 64 bytes since it is a hashed value)
+      count+=64;                                              // final total of bytes written to staging buffer
+  
+      mbedtls_sha512_ret(tBuf,count,tHash,0);                 // create hash of data
+      mbedtls_mpi_read_binary(&SRP.M1V,tHash,64);             // load hash result into mpi structure M1V
+
+      if(mbedtls_mpi_cmp_mpi(&SRP.M1,&SRP.M1V)){                  // if M1 (received from HAP Client) does not equal M1V (computed internally)
         LOG0("\n*** ERROR: SRP Proof Verification Failed\n\n");
-        tlv8.clear();                                         // clear TLV records
-        tlv8.val(kTLVType_State,pairState_M4);                // set State=<M4>
-        tlv8.val(kTLVType_Error,tagError_Authentication);    // set Error=Authentication
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.clear();                                             // clear TLV records
+        tlv8.val(kTLVType_State,pairState_M4);                    // set State=<M4>
+        tlv8.val(kTLVType_Error,tagError_Authentication);         // set Error=Authentication
+        tlvRespond();                                             // send response to client
+        pairStatus=pairState_M1;                                  // reset pairStatus to first step of unpaired
         return(0);        
       };
 
-      srp.createProof();                                  // M1 has been successully verified; now create accessory proof M2
-      tlv8.clear();                                         // clear TLV records
-      tlv8.val(kTLVType_State,pairState_M4);                // set State=<M4>
-      srp.loadTLV(kTLVType_Proof,&srp.M2,64);               // load M2 counter-proof
-      tlvRespond();                                       // send response to client
+      mbedtls_mpi_free(&SRP.N);
+      mbedtls_mpi_free(&SRP.B);
+      mbedtls_mpi_free(&SRP.M1V);
+      mbedtls_mpi_free(&SRP.s);
+  
+      // compute M2 = H( A | M1 | K )
+  
+      mbedtls_mpi_write_binary(&SRP.A,tBuf,384);          // write A into staging buffer
+      mbedtls_mpi_write_binary(&SRP.M1,tBuf+384,64);      // concatenate M1 (now verified) to staging buffer
+      mbedtls_mpi_write_binary(&SRP.K,tBuf+448,64);       // concatenate K to staging buffer
+      mbedtls_sha512_ret(tBuf,512,tHash,0);               // create hash of data
+      mbedtls_mpi_read_binary(&SRP.M2,tHash,64);          // load hash results into mpi structure M2
+    
+      mbedtls_mpi_free(&SRP.A);
+      mbedtls_mpi_free(&SRP.M1);
+     
+      tlv8.clear();                                                       // clear TLV records
+      tlv8.val(kTLVType_State,pairState_M4);                              // set State=<M4>
+      mbedtls_mpi_write_binary(&SRP.M2,tlv8.buf(kTLVType_Proof,64),64);   // set Proof = M2
+      tlvRespond();                                                       // send response to client
+
+      mbedtls_mpi_free(&SRP.M2);
 
       pairStatus=pairState_M5;                            // set next expected pair-state request from client
       return(1);            
@@ -456,13 +572,13 @@ int HAPClient::postPairSetupURL(){
     
     case pairState_M5: {                    // 'Exchange Request'
 
-      if(!tlv8.len(kTLVType_EncryptedData)){            
+      if(tlv8.len(kTLVType_EncryptedData)<=0){            
         LOG0("\n*** ERROR: Required 'EncryptedData' TLV record for this step is bad or missing\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M6);                // set State=<M6>
-        tlv8.val(kTLVType_Error,tagError_Unknown);           // set Error=Unknown (there is no specific error type for missing/bad TLV data)
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.val(kTLVType_Error,tagError_Unknown);            // set Error=Unknown (there is no specific error type for missing/bad TLV data)
+        tlvRespond();                                         // send response to client
+        pairStatus=pairState_M1;                              // reset pairStatus to first step of unpaired
         return(0);
       };
 
@@ -475,8 +591,9 @@ int HAPClient::postPairSetupURL(){
       // The iosDeviceX HKDF calculations are separate and will be performed further below with the SALT and INFO as specified in the HAP docs.
 
       TempBuffer<uint8_t> sharedSecret(64);
-      srp.read(sharedSecret,&srp.K,64);
-      srp.clear();                                        // clear out remaining SRP data
+      mbedtls_mpi_write_binary(&SRP.K,sharedSecret,64);     // write K into sharedSecret buffer
+
+      SRP.clear();                                          // clear out remaining SRP data
       
       hkdf.create(sessionKey,sharedSecret,64,"Pair-Setup-Encrypt-Salt","Pair-Setup-Encrypt-Info");       // create SessionKey
 
@@ -491,9 +608,9 @@ int HAPClient::postPairSetupURL(){
         LOG0("\n*** ERROR: Exchange-Request Authentication Failed\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M6);                // set State=<M6>
-        tlv8.val(kTLVType_Error,tagError_Authentication);    // set Error=Authentication
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.val(kTLVType_Error,tagError_Authentication);     // set Error=Authentication
+        tlvRespond();                                         // send response to client
+        pairStatus=pairState_M1;                              // reset pairStatus to first step of unpaired
         return(0);        
       }
 
@@ -501,22 +618,22 @@ int HAPClient::postPairSetupURL(){
         LOG0("\n*** ERROR: Can't parse decrypted data into separate TLV records\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M6);                // set State=<M6>
-        tlv8.val(kTLVType_Error,tagError_Unknown);           // set Error=Unknown (there is no specific error type for missing/bad TLV data)
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.val(kTLVType_Error,tagError_Unknown);            // set Error=Unknown (there is no specific error type for missing/bad TLV data)
+        tlvRespond();                                         // send response to client
+        pairStatus=pairState_M1;                              // reset pairStatus to first step of unpaired
         return(0);
       }
 
       tlv8.print(2);             // print decrypted TLV data
       LOG2("------- END DECRYPTED TLVS! -------\n");
        
-      if(!tlv8.len(kTLVType_Identifier) || !tlv8.len(kTLVType_PublicKey) || !tlv8.len(kTLVType_Signature)){            
+      if(tlv8.len(kTLVType_Identifier)<=0 || tlv8.len(kTLVType_PublicKey)<=0 || tlv8.len(kTLVType_Signature)<=0){            
         LOG0("\n*** ERROR: One or more of required 'Identifier,' 'PublicKey,' and 'Signature' TLV records for this step is bad or missing\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M6);                // set State=<M6>
-        tlv8.val(kTLVType_Error,tagError_Unknown);           // set Error=Unknown (there is no specific error type for missing/bad TLV data)
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.val(kTLVType_Error,tagError_Unknown);            // set Error=Unknown (there is no specific error type for missing/bad TLV data)
+        tlvRespond();                                         // send response to client
+        pairStatus=pairState_M1;                              // reset pairStatus to first step of unpaired
         return(0);
       };
 
@@ -548,9 +665,9 @@ int HAPClient::postPairSetupURL(){
         LOG0("\n*** ERROR: LPTK Signature Verification Failed\n\n");
         tlv8.clear();                                         // clear TLV records
         tlv8.val(kTLVType_State,pairState_M6);                // set State=<M6>
-        tlv8.val(kTLVType_Error,tagError_Authentication);    // set Error=Authentication
-        tlvRespond();                                       // send response to client
-        pairStatus=pairState_M1;                            // reset pairStatus to first step of unpaired
+        tlv8.val(kTLVType_Error,tagError_Authentication);     // set Error=Authentication
+        tlvRespond();                                         // send response to client
+        pairStatus=pairState_M1;                              // reset pairStatus to first step of unpaired
         return(0);                
       }
 
@@ -601,9 +718,8 @@ int HAPClient::postPairSetupURL(){
       LOG2("---------- END SUB-TLVS! ----------\n");
 
       tlv8.buf(kTLVType_EncryptedData,edLen);       // set length of EncryptedData TLV record, which should now include the Authentication Tag at the end as required by HAP
-      tlv8.val(kTLVType_State,pairState_M6);        // set State=<M6>
-      
-      tlvRespond();                        // send response to client
+      tlv8.val(kTLVType_State,pairState_M6);        // set State=<M6>     
+      tlvRespond();                                 // send response to client
 
       mdns_service_txt_item_set("_hap","_tcp","sf","0");           // broadcast new status
         
@@ -1712,6 +1828,5 @@ HKDF HAPClient::hkdf;
 pairState HAPClient::pairStatus;                        
 Accessory HAPClient::accessory;                         
 list<Controller> HAPClient::controllerList;
-SRP6A HAPClient::srp;
 HAPClient *HAPClient::currentClient;
  
