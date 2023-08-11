@@ -35,10 +35,12 @@
 #pragma GCC diagnostic ignored "-Wunused-result"                  // eliminates warning message regarded unused result from call to crypto_scalarmult_curve25519()
 
 #include <Arduino.h>
-#include <unordered_map>
+
 #include <vector>
+#include <unordered_map>
 #include <unordered_set>
 #include <list>
+
 #include <nvs.h>
 #include <ArduinoOTA.h>
 #include <esp_now.h>
@@ -58,6 +60,8 @@ using std::vector;
 using std::unordered_map;
 using std::unordered_set;
 using std::list;
+
+extern boolean HS_SerialInputDisabled;
 
 enum {
   GET_AID=1,
@@ -218,7 +222,6 @@ class Span{
   char pairingCodeCommand[12]="";               // user-specified Pairing Code - only needed if Pairing Setup Code is specified in sketch using setPairingCode()
   String lastClientIP="0.0.0.0";                // IP address of last client accessing device through encrypted channel
   boolean newCode;                              // flag indicating new application code has been loaded (based on keeping track of app SHA256)
-  boolean serialInputDisabled=false;            // flag indiating that serial input is disabled
   
   int connected=0;                              // WiFi connection status (increments upon each connect and disconnect)
   unsigned long waitTime=60000;                 // time to wait (in milliseconds) between WiFi connection attempts
@@ -226,7 +229,6 @@ class Span{
   
   const char *defaultSetupCode=DEFAULT_SETUP_CODE;            // Setup Code used for pairing
   uint16_t autoOffLED=0;                                      // automatic turn-off duration (in seconds) for Status LED
-  int logLevel=DEFAULT_LOG_LEVEL;                             // level for writing out log messages to serial monitor
   uint8_t maxConnections=CONFIG_LWIP_MAX_SOCKETS-2;           // maximum number of allowed simultaneous HAP connections
   uint8_t requestedMaxCon=CONFIG_LWIP_MAX_SOCKETS-2;          // requested maximum number of simultaneous HAP connections
   unsigned long comModeLife=DEFAULT_COMMAND_TIMEOUT*1000;     // length of time (in milliseconds) to keep Command Mode alive before resuming normal operations
@@ -308,10 +310,10 @@ class Span{
   Span& setApPassword(const char *pwd){network.apPassword=pwd;return(*this);}            // sets Access Point Password
   Span& setApTimeout(uint16_t nSec){network.lifetime=nSec*1000;return(*this);}           // sets Access Point Timeout (seconds)
   Span& setCommandTimeout(uint16_t nSec){comModeLife=nSec*1000;return(*this);}           // sets Command Mode Timeout (seconds)
-  Span& setLogLevel(int level){logLevel=level;return(*this);}                            // sets Log Level for log messages (0=baseline, 1=intermediate, 2=all, -1=disable all serial input/output)
-  int getLogLevel(){return(logLevel);}                                                   // get Log Level
-  Span& setSerialInputDisable(boolean val){serialInputDisabled=val;return(*this);}       // sets whether serial input is disabled (true) or enabled (false)
-  boolean getSerialInputDisable(){return(serialInputDisabled);}                          // returns true if serial input is disabled, or false if serial input in enabled
+  Span& setLogLevel(int level){HS_LogLevel=level;return(*this);}                         // sets Log Level for log messages (0=baseline, 1=intermediate, 2=all, -1=disable all serial input/output)
+  int getLogLevel(){return(HS_LogLevel);}                                                // get Log Level
+  Span& setSerialInputDisable(boolean val){HS_SerialInputDisabled=val;return(*this);}    // sets whether serial input is disabled (true) or enabled (false)
+  boolean getSerialInputDisable(){return(HS_SerialInputDisabled);}                       // returns true if serial input is disabled, or false if serial input in enabled
   Span& reserveSocketConnections(uint8_t n){maxConnections-=n;return(*this);}            // reserves n socket connections *not* to be used for HAP
   Span& setHostNameSuffix(const char *suffix){hostNameSuffix=suffix;return(*this);}      // sets the hostName suffix to be used instead of the 6-byte AccessoryID
   Span& setPortNum(uint16_t port){tcpPortNum=port;return(*this);}                        // sets the TCP port number to use for communications between HomeKit and HomeSpan

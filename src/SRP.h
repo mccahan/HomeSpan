@@ -27,6 +27,7 @@
  
 #pragma once
 
+#include <Arduino.h>
 #include <mbedtls/bignum.h>
 
 /////////////////////////////////////////////////

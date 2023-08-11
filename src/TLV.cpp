@@ -25,9 +25,9 @@
  *  
  ********************************************************************************/
 
-
-#include "homeSpan.h"
 #include "TLV.h"
+
+extern int HS_LogLevel;
 
 /////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +141,7 @@ uint8_t *TLV::buf(kTLVType tag, const uint8_t *src, size_t len){
 
 void TLV::print(int minLogLevel){
 
-  if(homeSpan.getLogLevel()<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
     
   for(int i=0;i<NUM_TLV_TAGS;i++){

@@ -26,7 +26,9 @@
  ********************************************************************************/
  
 #include "Utils.h"
-#include "HomeSpan.h"
+#include "Settings.h"
+
+extern boolean HS_SerialInputDisabled;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -41,7 +43,7 @@
 
 char *Utils::readSerial(char *c, int max){
 
-  if(homeSpan.getSerialInputDisable()){
+  if(HS_SerialInputDisabled){
     c[0]='\0';
     return(c);
   }

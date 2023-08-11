@@ -28,6 +28,7 @@
 // USER-DEFINED SETTINGS AND REFERENCE ENUMERATION CLASSES
 
 #include <core_version.h>
+#include <Arduino.h>
 
 #pragma once
 
@@ -104,9 +105,11 @@
 //      Message Log Level Control Macros           //
 //       0=Minimal, 1=Informative, 2=All           //
 
-#define LOG0(format,...) do{ if(homeSpan.getLogLevel()>=0)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
-#define LOG1(format,...) do{ if(homeSpan.getLogLevel()>=1)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
-#define LOG2(format,...) do{ if(homeSpan.getLogLevel()>=2)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
+extern int HS_LogLevel;
+
+#define LOG0(format,...) do{ if(HS_LogLevel>=0)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
+#define LOG1(format,...) do{ if(HS_LogLevel>=1)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
+#define LOG2(format,...) do{ if(HS_LogLevel>=2)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
 
 #define WEBLOG(format,...) homeSpan.addWebLog(false, format __VA_OPT__(,) __VA_ARGS__);
    

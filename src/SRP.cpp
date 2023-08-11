@@ -25,9 +25,6 @@
  *  
  ********************************************************************************/
  
-#include <sodium.h>
-#include <Arduino.h>
-
 #include <mbedtls/sha512.h>
 
 #include "SRP.h"
@@ -94,7 +91,7 @@ void SRP6A::createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t
   TempBuffer<uint8_t> tHash(64);   // temporary buffer for storing SHA-512 results  
   TempBuffer<char> icp(22);        // storage for I:P
 
-  randombytes_buf(salt,16);                 // generate 16 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)    
+  esp_fill_random(salt,16);                 // generate 16 random bytes
   mbedtls_mpi_read_binary(&s,salt,16);
 
   sprintf(icp,"Pair-Setup:%.3s-%.2s-%.3s",setupCode,setupCode+3,setupCode+5);

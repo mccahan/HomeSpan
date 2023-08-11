@@ -35,6 +35,8 @@
 #include "SRP.h"
 #include "TempBuf.h"
 
+extern int HS_LogLevel;
+
 //////////////////////////////////////
 
 void HAPClient::init(){
@@ -84,7 +86,7 @@ void HAPClient::init(){
     uint8_t buf[6];
     char cBuf[18];
     
-    randombytes_buf(buf,6);                                              // generate 6 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)
+    esp_fill_random(buf,6);                                              // generate 6 random bytes using libsodium (which uses the ESP32 hardware-based random number generator)
     sprintf(cBuf,"%02X:%02X:%02X:%02X:%02X:%02X",                        // create ID in form "XX:XX:XX:XX:XX:XX" (HAP Table 6-7)
       buf[0],buf[1],buf[2],buf[3],buf[4],buf[5]);
 
@@ -414,7 +416,7 @@ int HAPClient::postPairSetupURL(){
       mbedtls_mpi_read_binary(&SRP.v,verifyData.verifyCode,384);
 
       TempBuffer<uint8_t> privateKey(32);             // create b = random private key              
-      randombytes_buf(privateKey,32);
+      esp_fill_random(privateKey,32);
 
       mbedtls_mpi_read_binary(&SRP.b,privateKey,32);
 
@@ -1591,7 +1593,7 @@ void HAPClient::sendEncrypted(char *body, uint8_t *dataBuf, int dataLen){
 
 void HAPClient::hexPrintColumn(uint8_t *buf, int n, int minLogLevel){
 
-  if(homeSpan.logLevel<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
   
   for(int i=0;i<n;i++)
@@ -1602,7 +1604,7 @@ void HAPClient::hexPrintColumn(uint8_t *buf, int n, int minLogLevel){
 
 void HAPClient::hexPrintRow(uint8_t *buf, int n, int minLogLevel){
 
-  if(homeSpan.logLevel<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
 
   for(int i=0;i<n;i++)
@@ -1613,7 +1615,7 @@ void HAPClient::hexPrintRow(uint8_t *buf, int n, int minLogLevel){
 
 void HAPClient::charPrintRow(uint8_t *buf, int n, int minLogLevel){
 
-  if(homeSpan.logLevel<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
   
   for(int i=0;i<n;i++)
@@ -1756,7 +1758,7 @@ int HAPClient::listControllers(uint8_t *tlvBuf){
 
 void HAPClient::printControllers(int minLogLevel){
 
-  if(homeSpan.logLevel<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
 
   if(controllerList.empty()){

@@ -47,9 +47,12 @@ const __attribute__((section(".rodata_custom_desc"))) SpanPartition spanPartitio
 
 using namespace Utils;
 
-Span homeSpan;                      // HAP Attributes database and all related control functions for this Accessory (global-scoped variable)
+Span homeSpan;                      // HAP Attributes database and all related control functions for this Accessory
 HapCharacteristics hapChars;        // Instantiation of all HAP Characteristics (used to create SpanCharacteristics)
-std::list<HAPClient> hapList;       // HAP Client Linked-List containing HTTP client connections, parsing routines, and state variables (global-scoped variable)
+list<HAPClient> hapList;            // HAP Client Linked-List containing HTTP client connections, parsing routines, and state variables
+
+int HS_LogLevel=DEFAULT_LOG_LEVEL;          // Log Level
+boolean HS_SerialInputDisabled=false;       // flag indiating that serial input is disabled
 
 ///////////////////////////////
 //         Span              //
@@ -96,7 +99,7 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
                  "************************************************************\n\n"
                  "** Please ensure serial monitor is set to transmit <newlines>\n\n");
 
-  LOG0("Message Logs:     Level %d",logLevel);
+  LOG0("Message Logs:     Level %d",HS_LogLevel);
   LOG0("\nStatus LED:       Pin ");
   if(getStatusPin()>=0){
     LOG0(getStatusPin());
@@ -205,7 +208,7 @@ void Span::pollTask() {
 
   char cBuf[65]="?";
   
-  if(!serialInputDisabled && Serial.available()){
+  if(!HS_SerialInputDisabled && Serial.available()){
     readSerial(cBuf,64);
     processSerialCommand(cBuf);
   }
@@ -668,7 +671,7 @@ void Span::processSerialCommand(const char *c){
 
     case 'W': {
 
-      if(serialInputDisabled || logLevel<0)       // do not proceed if serial input/output is not fully enabled
+      if(HS_SerialInputDisabled || HS_LogLevel<0)       // do not proceed if serial input/output is not fully enabled
         return;
 
       if(strlen(network.wifiData.ssid)>0){
@@ -1190,7 +1193,7 @@ int Span::sprintfAttributes(char *cBuf, int flags){
 
 void Span::prettyPrint(char *buf, int nsp, int minLogLevel){
 
-  if(logLevel<minLogLevel)
+  if(HS_LogLevel<minLogLevel)
     return;
       
   int s=strlen(buf);

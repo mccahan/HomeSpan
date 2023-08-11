@@ -165,4 +165,4 @@ struct HAPClient {
 /////////////////////////////////////////////////
 // Extern Variables
 
-extern std::list<HAPClient>hapList;
+extern list<HAPClient>hapList;
