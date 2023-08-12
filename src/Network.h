@@ -28,8 +28,11 @@
 #pragma once
 
 #include <WiFi.h>
+
 #include <unordered_set>
+
 #include "Settings.h"
+#include "Utils.h"
 
 using std::unordered_set;
 
@@ -64,7 +67,7 @@ struct Network {
   void scan();                                                              // scan for WiFi networks and save only those with unique SSIDs
   void serialConfigure();                                                   // configure homeSpan WiFi from serial monitor
   boolean allowedCode(char *s);                                             // checks if Setup Code is allowed (HAP defines a list of disallowed codes)
-  void apConfigure();                                                       // configure homeSpan WiFi and Setup Code using temporary Captive Access Point; only returns if sucessful, else ESP restarts
+  int apConfigure(PushButton *controlButton);                               // configure homeSpan WiFi and Setup Code using temporary Captive Access Point; returns 1 if successful, otherwise 0
   void processRequest(char *body, char *formData);                          // process the HTTP request
   int getFormValue(char *formData, const char *tag, char *value, int maxSize);    // search for 'tag' in 'formData' and copy result into 'value' up to 'maxSize' characters; returns number of characters, else -1 if 'tag' not found
   int badRequestError();                                                    // return 400 error

@@ -29,7 +29,6 @@
 
 #include "Network.h"
 #include "HomeSpan.h"
-#include "Utils.h"
 #include "TempBuf.h"
 
 using namespace Utils;
@@ -102,7 +101,7 @@ boolean Network::allowedCode(char *s){
 
 ///////////////////////////////
 
-void Network::apConfigure(){
+int Network::apConfigure(PushButton *controlButton){
 
   LOG0("*** Starting Access Point: %s / %s\n",apSSID,apPassword);
 
@@ -134,11 +133,11 @@ void Network::apConfigure(){
 
   while(1){                                  // loop until we get timed out (which will be accelerated if save/cancel selected)
 
-    if(homeSpan.controlButton && homeSpan.controlButton->triggered(9999,3000)){
+    if(controlButton && controlButton->triggered(9999,3000)){
       LOG0("\n*** Access Point Terminated.  Restarting...\n\n");
       STATUS_UPDATE(start(LED_ALERT),HS_AP_TERMINATED)
-      homeSpan.controlButton->wait();
-      homeSpan.reboot();
+      controlButton->wait();
+      return(0);
     }
 
     if(millis()>alarmTimeOut){
@@ -146,7 +145,7 @@ void Network::apConfigure(){
       delay(100);
       if(apStatus==1){
         LOG0("\n*** Access Point: Exiting and Saving Settings\n\n");
-        return;
+        return(1);
       } else {
         if(apStatus==0)
           LOG0("\n*** Access Point: Timed Out (%ld seconds).",lifetime/1000);
@@ -154,7 +153,7 @@ void Network::apConfigure(){
           LOG0("\n*** Access Point: Configuration Cancelled.");
         LOG0("  Restarting...\n\n");
         STATUS_UPDATE(start(LED_ALERT),HS_AP_TERMINATED)
-        homeSpan.reboot();
+        return(0);
       }
     }
 

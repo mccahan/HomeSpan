@@ -53,7 +53,7 @@ void setup() {
 
 //  homeSpan.setHostNameSuffix("");
 
-//  homeSpan.setControlPin(21);
+  homeSpan.setControlPin(21);
   
   homeSpan.setLogLevel(2);
 //  homeSpan.reserveSocketConnections(12);

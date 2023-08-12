@@ -91,14 +91,15 @@ void SRP6A::createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t
   TempBuffer<uint8_t> tHash(64);   // temporary buffer for storing SHA-512 results  
   TempBuffer<char> icp(22);        // storage for I:P
 
-  esp_fill_random(salt,16);                 // generate 16 random bytes
-  mbedtls_mpi_read_binary(&s,salt,16);
+  esp_fill_random(salt,16);                 // generate 16 random bytes for salt (s)
+//  mbedtls_mpi_read_binary(&s,salt,16);
 
   sprintf(icp,"Pair-Setup:%.3s-%.2s-%.3s",setupCode,setupCode+3,setupCode+5);
 
   // compute x = SHA512( s | SHA512( I | ":" | P ) )
 
-  mbedtls_mpi_write_binary(&s,tBuf,16);                             // write s into first 16 bytes of staging buffer            
+//  mbedtls_mpi_write_binary(&s,tBuf,16);                             // write s into first 16 bytes of staging buffer    
+  memcpy(tBuf,salt,16);                                             // write salt (s) into first 16 bytes of staging buffer
   mbedtls_sha512_ret((uint8_t *)icp.get(),strlen(icp),tBuf+16,0);   // create hash of username:password and write into last 64 bytes of staging buffer
   mbedtls_sha512_ret(tBuf,80,tHash,0);                              // create second hash of salted, hashed username:password 
   mbedtls_mpi_read_binary(&x,tHash,64);                             // load hash result into mpi structure x
@@ -114,7 +115,7 @@ void SRP6A::createVerifyCode(const char *setupCode, uint8_t *verifyCode, uint8_t
   mbedtls_mpi_free(&N);
   mbedtls_mpi_free(&g);
   mbedtls_mpi_free(&v);
-  mbedtls_mpi_free(&s);
+//  mbedtls_mpi_free(&s);
   mbedtls_mpi_free(&_rr);
 }
 

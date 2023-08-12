@@ -703,7 +703,8 @@ void Span::processSerialCommand(const char *c){
         return;
       }
       
-      network.apConfigure();
+      if(!network.apConfigure(controlButton))                                         // returns 1 if successful, else 0
+        reboot();
       nvs_set_blob(wifiNVS,"WIFIDATA",&network.wifiData,sizeof(network.wifiData));    // update data
       nvs_commit(wifiNVS);                                                            // commit to NVS
       LOG0("\n*** Credentials saved!\n");

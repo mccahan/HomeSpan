@@ -412,8 +412,8 @@ int HAPClient::postPairSetupURL(){
       size_t len;
       nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);               // retrieve stored verification code and salt
       
-      mbedtls_mpi_read_binary(&SRP.s,verifyData.salt,16);
-      mbedtls_mpi_read_binary(&SRP.v,verifyData.verifyCode,384);
+      mbedtls_mpi_read_binary(&SRP.s,verifyData.salt,16);               // load salt into s
+      mbedtls_mpi_read_binary(&SRP.v,verifyData.verifyCode,384);        // load verification code into v
 
       TempBuffer<uint8_t> privateKey(32);             // create b = random private key              
       esp_fill_random(privateKey,32);
