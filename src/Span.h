@@ -571,7 +571,7 @@ namespace Characteristic {
 
 
 ////////////////////////////////////////////////////////
-// MACROS TO ADD A NEW ACCESSORT WITH OPTIONAL NAME   //
+// MACROS TO ADD A NEW ACCESSORY WITH OPTIONAL NAME   //
 ////////////////////////////////////////////////////////
 
 #define SPAN_ACCESSORY(...)    new SpanAccessory();  new Service::AccessoryInformation(); new Characteristic::Identify(); __VA_OPT__(new Characteristic::Name(__VA_ARGS__));
