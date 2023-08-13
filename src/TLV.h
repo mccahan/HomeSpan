@@ -95,4 +95,4 @@ public:
   int unpack(const uint8_t *tlvBuf, int nBytes);                // unpacks nBytes of TLV content from single byte buffer into individual TLV records (return 1 on success, 0 if fail) 
   int pack(uint8_t *tlvBuf);                                    // if tlvBuf!=NULL, packs all defined TLV records (LEN>0) into a single byte buffer, spitting large TLVs into separate 255-byte chunks.  Returns number of bytes (that would be) stored in buffer
   
-}; // TLV
+};

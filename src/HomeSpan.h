@@ -43,7 +43,6 @@
 
 #include <nvs.h>
 #include <ArduinoOTA.h>
-#include <esp_now.h>
 #include <mbedtls/base64.h>
 
 #include "extras/Blinker.h"
@@ -55,6 +54,7 @@
 #include "Characteristics.h"
 #include "TempBuf.h"
 #include "WebLog.h"
+#include "SpanPoint.h"
 
 using std::vector;
 using std::unordered_map;
@@ -826,45 +826,6 @@ class SpanUserCommand {
 
   SpanUserCommand(char c, const char *s, void (*f)(const char *));  
   SpanUserCommand(char c, const char *s, void (*f)(const char *, void *), void *arg);  
-};
-
-///////////////////////////////
-
-class SpanPoint {
-
-  friend class Span;
-
-  int receiveSize;                            // size (in bytes) of messages to receive
-  int sendSize;                               // size (in bytes) of messages to send
-  esp_now_peer_info_t peerInfo;               // structure for all ESP-NOW peer data
-  QueueHandle_t receiveQueue;                 // queue to store data after it is received
-  uint32_t receiveTime=0;                     // time (in millis) of most recent data received
-  
-  static uint8_t lmk[16];
-  static boolean initialized;
-  static boolean isHub;
-  static vector<SpanPoint *> SpanPoints;
-  static uint16_t channelMask;                // channel mask (only used for remote devices)
-  static QueueHandle_t statusQueue;           // queue for communication between SpanPoint::dataSend and SpanPoint::send
-  static nvs_handle pointNVS;                 // NVS storage for channel number (only used for remote devices)
-  
-  static void dataReceived(const uint8_t *mac, const uint8_t *incomingData, int len);
-  static void init(const char *password="HomeSpan");
-  static void setAsHub(){isHub=true;}
-  static uint8_t nextChannel();
-  
-  static void dataSent(const uint8_t *mac, esp_now_send_status_t status) {
-    xQueueOverwrite( statusQueue, &status );
-  }
-  
-  public:
-
-  SpanPoint(const char *macAddress, int sendSize, int receiveSize, int queueDepth=1, boolean useAPaddress=false);
-  static void setPassword(const char *pwd){init(pwd);};      
-  static void setChannelMask(uint16_t mask);  
-  boolean get(void *dataBuf);
-  boolean send(const void *data);
-  uint32_t time(){return(millis()-receiveTime);}
 };
 
 /////////////////////////////////////////////////
