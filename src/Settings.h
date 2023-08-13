@@ -111,7 +111,8 @@ extern int HS_LogLevel;
 #define LOG1(format,...) do{ if(HS_LogLevel>=1)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
 #define LOG2(format,...) do{ if(HS_LogLevel>=2)Serial.print ##__VA_OPT__(f)(format __VA_OPT__(,) __VA_ARGS__); }while(0)
 
-#define WEBLOG(format,...) homeSpan.addWebLog(false, format __VA_OPT__(,) __VA_ARGS__);
+#define WEBLOG(format,...) do{ if(WebLog)WebLog->vLog(false, format __VA_OPT__(,) __VA_ARGS__); }while(0);
+#define WEBLOG_SYS(format,...) do{ if(WebLog)WebLog->vLog(true, format __VA_OPT__(,) __VA_ARGS__); }while(0);
    
 //////////////////////////////////////////////////////
 //   Types of Accessory Categories                  //

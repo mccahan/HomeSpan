@@ -301,7 +301,7 @@ void HAPClient::processRequest(){
       return;
     }
 
-    if(homeSpan.webLog.isEnabled && !strncmp(body,homeSpan.webLog.statusURL.c_str(),homeSpan.webLog.statusURL.length())){       // GET STATUS - AN OPTIONAL, NON-HAP-R2 FEATURE
+    if(WebLog && !strncmp(body,WebLog->statusURL.c_str(),WebLog->statusURL.length())){       // GET STATUS - AN OPTIONAL, NON-HAP-R2 FEATURE
       getStatusURL();
       return;
     }    
@@ -1256,7 +1256,7 @@ int HAPClient::getStatusURL(){
 
   char clocktime[33];
 
-  if(homeSpan.webLog.timeInit){
+  if(WebLog->timeInit){
     struct tm timeinfo;
     getLocalTime(&timeinfo,10);
     strftime(clocktime,sizeof(clocktime),"%c",&timeinfo);
@@ -1276,13 +1276,13 @@ int HAPClient::getStatusURL(){
   String response="HTTP/1.1 200 OK\r\nContent-type: text/html; charset=utf-8\r\n\r\n";
 
   response+="<html><head><title>" + String(homeSpan.displayName) + "</title>\n";
-  response+="<style>body {background-color:lightblue;} th, td {padding-right: 10px; padding-left: 10px; border:1px solid black;}" + homeSpan.webLog.css + "</style></head>\n";
+  response+="<style>body {background-color:lightblue;} th, td {padding-right: 10px; padding-left: 10px; border:1px solid black;}" + WebLog->css + "</style></head>\n";
   response+="<body class=bod1><h2>" + String(homeSpan.displayName) + "</h2>\n";
   
   response+="<table class=tab1>\n";
   response+="<tr><td>Up Time:</td><td>" + String(uptime) + "</td></tr>\n";
   response+="<tr><td>Current Time:</td><td>" + String(clocktime) + "</td></tr>\n";
-  response+="<tr><td>Boot Time:</td><td>" + String(homeSpan.webLog.bootTime) + "</td></tr>\n";
+  response+="<tr><td>Boot Time:</td><td>" + String(WebLog->bootTime) + "</td></tr>\n";
   
   response+="<tr><td>Reset Reason:</td><td>";
   switch(esp_reset_reason()) {
@@ -1339,31 +1339,31 @@ int HAPClient::getStatusURL(){
   response+="<tr><td>MbedTLS Version:</td><td>" + String(mbtlsv) + "</td></tr>\n";
   
   response+="<tr><td>HomeKit Status:</td><td>" + String(HAPClient::nAdminControllers()?"PAIRED":"NOT PAIRED") + "</td></tr>\n";   
-  response+="<tr><td>Max Log Entries:</td><td>" + String(homeSpan.webLog.maxEntries) + "</td></tr>\n"; 
+  response+="<tr><td>Max Log Entries:</td><td>" + String(WebLog->maxEntries) + "</td></tr>\n"; 
   response+="</table>\n";
   response+="<p></p>";
 
-  if(homeSpan.webLog.maxEntries>0){
+  if(WebLog->maxEntries>0){
     response+="<table class=tab2><tr><th>Entry</th><th>Up Time</th><th>Log Time</th><th>Client</th><th>Message</th></tr>\n";
-    int lastIndex=homeSpan.webLog.nEntries-homeSpan.webLog.maxEntries;
+    int lastIndex=WebLog->nEntries-WebLog->maxEntries;
     if(lastIndex<0)
       lastIndex=0;
     
-    for(int i=homeSpan.webLog.nEntries-1;i>=lastIndex;i--){
-      int index=i%homeSpan.webLog.maxEntries;
-      seconds=homeSpan.webLog.log[index].upTime/1e6;
+    for(int i=WebLog->nEntries-1;i>=lastIndex;i--){
+      int index=i%WebLog->maxEntries;
+      seconds=WebLog->log[index].upTime/1e6;
       secs=seconds%60;
       mins=(seconds/=60)%60;
       hours=(seconds/=60)%24;
       days=(seconds/=24);   
       sprintf(uptime,"%d:%02d:%02d:%02d",days,hours,mins,secs);
 
-      if(homeSpan.webLog.log[index].clockTime.tm_year>0)
-        strftime(clocktime,sizeof(clocktime),"%c",&homeSpan.webLog.log[index].clockTime);
+      if(WebLog->log[index].clockTime.tm_year>0)
+        strftime(clocktime,sizeof(clocktime),"%c",&WebLog->log[index].clockTime);
       else
         sprintf(clocktime,"Unknown");        
       
-      response+="<tr><td>" + String(i+1) + "</td><td>" + String(uptime) + "</td><td>" + String(clocktime) + "</td><td>" + homeSpan.webLog.log[index].clientIP + "</td><td>" + String(homeSpan.webLog.log[index].message) + "</td/tr>\n";
+      response+="<tr><td>" + String(i+1) + "</td><td>" + String(uptime) + "</td><td>" + String(clocktime) + "</td><td>" + WebLog->log[index].clientIP + "</td><td>" + String(WebLog->log[index].message) + "</td/tr>\n";
     }
     response+="</table>\n";
   }

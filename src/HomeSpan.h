@@ -55,6 +55,7 @@
 #include "HapQR.h"
 #include "Characteristics.h"
 #include "TempBuf.h"
+#include "WebLog.h"
 
 using std::vector;
 using std::unordered_map;
@@ -143,32 +144,6 @@ struct SpanBuf{                               // temporary storage buffer for us
   StatusCode status;                          // return status (HAP Table 6-11)
   SpanCharacteristic *characteristic=NULL;    // Characteristic to update (NULL if not found)
 };
-  
-///////////////////////////////
-
-struct SpanWebLog{                            // optional web status/log data
-  boolean isEnabled=false;                    // flag to inidicate WebLog has been enabled
-  uint16_t maxEntries=0;                      // max number of log entries;
-  int nEntries=0;                             // total cumulative number of log entries
-  const char *timeServer;                     // optional time server to use for acquiring clock time
-  const char *timeZone;                       // optional time-zone specification
-  boolean timeInit=false;                     // flag to indicate time has been initialized
-  char bootTime[33]="Unknown";                // boot time
-  String statusURL;                           // URL of status log
-  uint32_t waitTime=120000;                   // number of milliseconds to wait for initial connection to time server
-  String css="";                              // optional user-defined style sheet for web log
-    
-  struct log_t {                              // log entry type
-    uint64_t upTime;                          // number of seconds since booting
-    struct tm clockTime;                      // clock time
-    char *message;                            // pointers to log entries of arbitrary size
-    String clientIP;                          // IP address of client making request (or "0.0.0.0" if not applicable)
-  } *log=NULL;                                // array of log entries 
-
-  void init(uint16_t maxEntries, const char *serv, const char *tz, const char *url);
-  static void initTime(void *args);  
-  void vLog(boolean sysMsg, const char *fmr, va_list ap);
-};
 
 ///////////////////////////////
 
@@ -220,7 +195,6 @@ class Span{
   nvs_handle wifiNVS=0;                         // handle for non-volatile-storage of WiFi data
   nvs_handle otaNVS;                            // handle for non-volatile storaget of OTA data
   char pairingCodeCommand[12]="";               // user-specified Pairing Code - only needed if Pairing Setup Code is specified in sketch using setPairingCode()
-  String lastClientIP="0.0.0.0";                // IP address of last client accessing device through encrypted channel
   boolean newCode;                              // flag indicating new application code has been loaded (based on keeping track of app SHA256)
   
   int connected=0;                              // WiFi connection status (increments upon each connect and disconnect)
@@ -245,7 +219,6 @@ class Span{
   Blinkable *statusDevice = NULL;                   // the device used for the Blinker
   PushButton *controlButton = NULL;                 // controls HomeSpan configuration and resets
   Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
-  SpanWebLog webLog;                                // optional web status/log
   TaskHandle_t pollTaskHandle = NULL;               // optional task handle to use for poll() function
     
   SpanOTA spanOTA;                                  // manages OTA process
@@ -335,25 +308,22 @@ class Span{
   int enableOTA(const char *pwd, boolean safeLoad=true){return(spanOTA.init(true, safeLoad, pwd));}      // enables Over-the-Air updates, with custom authorization password (overrides any password stored with the 'O' command)
 
   Span& enableWebLog(uint16_t maxEntries=0, const char *serv=NULL, const char *tz="UTC", const char *url=DEFAULT_WEBLOG_URL){     // enable Web Logging
-    webLog.init(maxEntries, serv, tz, url);
+    if(!WebLog){
+      WebLog=new SpanWebLog(maxEntries, serv, tz, url);
+      if(serv)
+        reserveSocketConnections(1);
+    }
     return(*this);
   }
 
-  void addWebLog(boolean sysMsg, const char *fmt, ...){               // add Web Log entry
-    va_list ap;
-    va_start(ap,fmt);
-    webLog.vLog(sysMsg,fmt,ap);
-    va_end(ap);    
-  }
-
-  Span& setWebLogCSS(const char *css){webLog.css="\n" + String(css) + "\n";return(*this);}
+  Span& setWebLogCSS(const char *css){WebLog->css="\n" + String(css) + "\n";return(*this);}
 
   void autoPoll(uint32_t stackSize=8192, uint32_t priority=1, uint32_t cpu=0){     // start pollTask()
     xTaskCreateUniversal([](void *parms){for(;;)homeSpan.pollTask();}, "pollTask", stackSize, NULL, priority, &pollTaskHandle, cpu);
     LOG0("\n*** AutoPolling Task started with priority=%d\n\n",uxTaskPriorityGet(pollTaskHandle)); 
   }
 
-  Span& setTimeServerTimeout(uint32_t tSec){webLog.waitTime=tSec*1000;return(*this);}    // sets wait time (in seconds) for optional web log time server to connect
+  Span& setTimeServerTimeout(uint32_t tSec){WebLog->waitTime=tSec*1000;return(*this);}    // sets wait time (in seconds) for optional web log time server to connect
  
   [[deprecated("Please use reserveSocketConnections(n) method instead.")]]
   void setMaxConnections(uint8_t n){requestedMaxCon=n;}                   // sets maximum number of simultaneous HAP connections

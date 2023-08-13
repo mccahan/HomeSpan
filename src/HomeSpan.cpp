@@ -237,9 +237,13 @@ void Span::pollTask() {
   
   while(it!=hapList.end()){
     if((*it).client.available()){
-      lastClientIP=(*it).client.remoteIP().toString();     // store IP Address for web logging
-      (*it).processRequest();                              // process HAP request
-      lastClientIP="0.0.0.0";                              // reset stored IP address to show "0.0.0.0" if homeSpan.getClientIP() is used in any other context  
+      if(WebLog)
+        WebLog->lastClientIP=(*it).client.remoteIP().toString();     // store IP Address for web logging
+
+      (*it).processRequest();                                        // process HAP request!
+      
+      if(WebLog)
+        WebLog->lastClientIP="0.0.0.0";                              // reset stored IP address to show "0.0.0.0"
     } 
     
     if(!(*it).client.connected()){                         // client is no longer connected
@@ -355,7 +359,7 @@ void Span::checkConnect(){
     if(WiFi.status()==WL_CONNECTED)
       return;
       
-    addWebLog(true,"*** WiFi Connection Lost!");
+    WEBLOG_SYS("*** WiFi Connection Lost!");
     connected++;
     waitTime=60000;
     alarmConnect=0;
@@ -375,7 +379,7 @@ void Span::checkConnect(){
       LOG0("\n*** Can't connect to %s.  You may type 'W <return>' to re-configure WiFi, or 'X <return>' to erase WiFi credentials.  Will try connecting again in 60 seconds.\n\n",network.wifiData.ssid);
       waitTime=60000;
     } else {    
-      addWebLog(true,"Trying to connect to %s.  Waiting %d sec...",network.wifiData.ssid,waitTime/1000);
+      WEBLOG_SYS("Trying to connect to %s.  Waiting %d sec...",network.wifiData.ssid,waitTime/1000);
       WiFi.begin(network.wifiData.ssid,network.wifiData.pwd);
     }
 
@@ -387,7 +391,7 @@ void Span::checkConnect(){
   resetStatus();  
   connected++;
 
-  addWebLog(true,"WiFi Connected!  IP Address = %s",WiFi.localIP().toString().c_str());
+  WEBLOG_SYS("WiFi Connected!  IP Address = %s",WiFi.localIP().toString().c_str());
 
   if(connected>1)                           // Do not initialize everything below if this is only a reconnect
     return;
@@ -477,12 +481,12 @@ void Span::checkConnect(){
   
   mdns_service_txt_item_set("_hap","_tcp","ota",spanOTA.enabled?"yes":"no");                     // OTA status (info only - NOT used by HAP)
 
-  if(webLog.isEnabled){
-    mdns_service_txt_item_set("_hap","_tcp","logURL",webLog.statusURL.c_str()+4);           // Web Log status (info only - NOT used by HAP)
+  if(WebLog){
+    mdns_service_txt_item_set("_hap","_tcp","logURL",WebLog->statusURL.c_str()+4);           // Web Log status (info only - NOT used by HAP)
     
-    LOG0("Web Logging enabled at http://%s.local:%d%swith max number of entries=%d\n\n",hostName,tcpPortNum,webLog.statusURL.c_str()+4,webLog.maxEntries);
-    if(webLog.timeServer)
-      xTaskCreateUniversal(webLog.initTime, "timeSeverTaskHandle", 8096, &webLog, 1, NULL, 0);
+    LOG0("Web Logging enabled at http://%s.local:%d%swith max number of entries=%d\n\n",hostName,tcpPortNum,WebLog->statusURL.c_str()+4,WebLog->maxEntries);
+    if(WebLog->timeServer)
+      xTaskCreateUniversal(WebLog->initTime, "timeSeverTaskHandle", 8096, WebLog, 1, NULL, 0);
   }
   
   LOG0("Starting HAP Server on port %d supporting %d simultaneous HomeKit Controller Connections...\n\n",tcpPortNum,maxConnections);
@@ -2045,72 +2049,6 @@ SpanUserCommand::SpanUserCommand(char c, const char *s, void (*f)(const char *, 
   userArg=arg;
    
   homeSpan.UserCommands[c]=this;
-}
-
-///////////////////////////////
-//        SpanWebLog         //
-///////////////////////////////
-
-void SpanWebLog::init(uint16_t maxEntries, const char *serv, const char *tz, const char *url){
-  isEnabled=true;
-  this->maxEntries=maxEntries;
-  timeServer=serv;
-  timeZone=tz;
-  statusURL="GET /" + String(url) + " ";
-  log = (log_t *)calloc(maxEntries,sizeof(log_t));
-  if(timeServer)
-    homeSpan.reserveSocketConnections(1);
-}
-
-///////////////////////////////
-
-void SpanWebLog::initTime(void *args){
-  SpanWebLog *wLog = (SpanWebLog *)args;
-  
-  WEBLOG("Acquiring Time from %s (%s)",wLog->timeServer,wLog->timeZone,wLog->waitTime/1000);
-  configTzTime(wLog->timeZone,wLog->timeServer);
-  struct tm timeinfo;
-  if(getLocalTime(&timeinfo,wLog->waitTime)){
-    strftime(wLog->bootTime,sizeof(wLog->bootTime),"%c",&timeinfo);
-    wLog->timeInit=true;
-    WEBLOG("Time Acquired: %s",wLog->bootTime);
-  } else {
-    WEBLOG("Can't access Time Server after %d seconds",wLog->waitTime/1000);
-  }
-
-  vTaskDelete(NULL);
-  
-}
-
-///////////////////////////////
-
-void SpanWebLog::vLog(boolean sysMsg, const char *fmt, va_list ap){
-
-  char *buf;
-  vasprintf(&buf,fmt,ap);
-
-  if(sysMsg)
-    LOG0("%s\n",buf);
-  else
-    LOG1("WEBLOG: %s\n",buf);
-  
-  if(maxEntries>0){
-    int index=nEntries%maxEntries;
-  
-    log[index].upTime=esp_timer_get_time();
-    if(timeInit)
-      getLocalTime(&log[index].clockTime,10);
-    else
-      log[index].clockTime.tm_year=0;
-  
-    log[index].message=(char *)realloc(log[index].message, strlen(buf) + 1);
-    strcpy(log[index].message, buf);
-    
-    log[index].clientIP=homeSpan.lastClientIP;  
-    nEntries++;
-  }
-
-  free(buf);
 }
 
 ///////////////////////////////
