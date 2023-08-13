@@ -208,6 +208,7 @@ The following **optional** `homeSpan` methods enable additional features and pro
 * `Span& setWebLogCSS(const char *css)`
   * sets the format of the HomeSpan Web Log to the custom style sheet specified by *css*
   * see [Message Logging](Logging.md) for details on how to construct *css*
+  * must be called *after* `enableWebLog()` above, else will have no effect
  
 * `void processSerialCommand(const char *CLIcommand)`
   * processes the *CLIcommand* just as if were typed into the Serial Monitor
