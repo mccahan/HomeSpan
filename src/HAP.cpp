@@ -58,6 +58,14 @@ void HAPClient::init(){
     homeSpan.processSerialCommand(homeSpan.pairingCodeCommand);     // if load failed due to invalid code, the logic below still runs and will pick up previous code or use the default one
   } 
 
+  if(!strlen(homeSpan.qrID)){                                      // Setup ID has not been specified in sketch
+    if(!nvs_get_str(hapNVS,"SETUPID",NULL,&len)){                    // check for saved value
+      nvs_get_str(hapNVS,"SETUPID",homeSpan.qrID,&len);                 // retrieve data
+    } else {
+      sprintf(homeSpan.qrID,"%s",DEFAULT_QR_ID);                     // use default
+   }
+  }
+
   struct {                                      // temporary structure to hold SRP verification code and salt stored in NVS
     uint8_t salt[16];
     uint8_t verifyCode[384];
@@ -68,17 +76,10 @@ void HAPClient::init(){
     SRP.createVerifyCode(homeSpan.defaultSetupCode,verifyData.verifyCode,verifyData.salt);         // create verification code from default Setup Code and random salt
     nvs_set_blob(srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                           // update data
     nvs_commit(srpNVS);                                                                         // commit to NVS
-    LOG0("Setup Payload for Optional QR Code: %s\n\n",homeSpan.qrCode.get(atoi(homeSpan.defaultSetupCode),homeSpan.qrID,atoi(homeSpan.category)));
+    TempBuffer<char> qrBuf(21);
+    LOG0("Setup Payload for Optional QR Code: %s\n\n",sprintQRCode(qrBuf,atoi(homeSpan.defaultSetupCode),homeSpan.qrID,atoi(homeSpan.category)));
   }
 
-  if(!strlen(homeSpan.qrID)){                                      // Setup ID has not been specified in sketch
-    if(!nvs_get_str(hapNVS,"SETUPID",NULL,&len)){                    // check for saved value
-      nvs_get_str(hapNVS,"SETUPID",homeSpan.qrID,&len);                 // retrieve data
-    } else {
-      sprintf(homeSpan.qrID,"%s",DEFAULT_QR_ID);                     // use default
-   }
-  }
-  
   if(!nvs_get_blob(hapNVS,"ACCESSORY",NULL,&len)){                    // if found long-term Accessory data in NVS
     nvs_get_blob(hapNVS,"ACCESSORY",&accessory,&len);                 // retrieve data
   } else {      
@@ -1791,6 +1792,29 @@ void HAPClient::saveControllers(){
   nvs_commit(hapNVS);                                            // commit to NVS  
 }
 
+
+//////////////////////////////////////
+
+char *HAPClient::sprintQRCode(char *qrCode, uint32_t setupCode, const char *setupID, uint8_t category, uint8_t protocols, uint8_t qVersion, uint8_t qReserved){
+     
+  setupCode&=0x07FFFFFF;     // valid values: 0-99999999
+  qVersion&=0x7;             // valid values: 0-7
+  qReserved&=0xF;            // valid values: 0-15
+  protocols&=0x7;            // valid values: 0-7 (NFC=1, IP=2, BLTE=4)
+  
+  uint64_t n=((uint64_t) qVersion<<43) | ((uint64_t) qReserved<<39) | ((uint64_t) category<<31) | (protocols<<27) | setupCode;
+  sprintf(qrCode,"X-HM://");
+
+  for(int i=15;i>=7;i--){
+    qrCode[i]=n%36+48;
+    if(qrCode[i]>57)
+      qrCode[i]+=7;
+    n/=36;
+  }
+
+  sprintf(qrCode+16,"%-4.4s",setupID);
+  return(qrCode);
+};
 
 //////////////////////////////////////
 

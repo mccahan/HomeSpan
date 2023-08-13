@@ -61,6 +61,8 @@ void setup() {
 //  homeSpan.setApSSID("HS_Setup");
 //  homeSpan.setApPassword("");
 
+//homeSpan.setQRID("9Sam");
+
 //          .setStatusPin(13);
 //  homeSpan.setSerialInputDisable(true);
 //  homeSpan.enableOTA();

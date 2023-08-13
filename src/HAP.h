@@ -160,6 +160,8 @@ struct HAPClient {
   static void checkTimedWrites();                                                      // checks for expired Timed Write PIDs, and clears any found (HAP Section 6.7.2.4)
   static void eventNotify(SpanBuf *pObj, int nObj, HAPClient *ignoreClient=NULL);      // transmits EVENT Notifications for nObj SpanBuf objects, pObj, with optional flag to ignore a specific client
   static int sprintfNotify(SpanBuf *pObj, int nObj, char *cBuf, HAPClient *hc);        // prints notification JSON into buf based on SpanBuf objects and specified connection number
+
+  static char *sprintQRCode(char *buf, uint32_t setupCode, const char *setupID, uint8_t category, uint8_t protocols=2, uint8_t qVersion=0, uint8_t qReserved=0);
 };
 
 /////////////////////////////////////////////////

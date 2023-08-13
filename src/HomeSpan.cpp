@@ -651,8 +651,9 @@ void Span::processSerialCommand(const char *c){
         nvs_set_blob(HAPClient::srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                              // update data
         nvs_commit(HAPClient::srpNVS);                                                                            // commit to NVS
         LOG0("New Code Saved!\n");
-        LOG0("Setup Payload for Optional QR Code: %s\n\n",qrCode.get(atoi(setupCode),qrID,atoi(category)));
-      }            
+//        LOG0("Setup Payload for Optional QR Code: %s\n\n",qrCode.get(atoi(setupCode),qrID,atoi(category)));
+        TempBuffer<char> qrBuf(21);
+        LOG0("Setup Payload for Optional QR Code: %s\n\n",HAPClient::sprintQRCode(qrBuf,atoi(setupCode),qrID,atoi(category)));      }            
     }
     break;
 

@@ -52,7 +52,6 @@
 #include "Utils.h"
 #include "Network.h"
 #include "HAPConstants.h"
-#include "HapQR.h"
 #include "Characteristics.h"
 #include "TempBuf.h"
 #include "WebLog.h"
@@ -189,7 +188,6 @@ class Span{
   unsigned long snapTime;                       // current time (in millis) snapped before entering Service loops() or updates()
   boolean isInitialized=false;                  // flag indicating HomeSpan has been initialized
   boolean isBridge=true;                        // flag indicating whether device is configured as a bridge (i.e. first Accessory contains nothing but AccessoryInformation and HAPProtocolInformation)
-  HapQR qrCode;                                 // optional QR Code to use for pairing
   const char *sketchVersion="n/a";              // version of the sketch
   nvs_handle charNVS;                           // handle for non-volatile-storage of Characteristics data
   nvs_handle wifiNVS=0;                         // handle for non-volatile-storage of WiFi data
