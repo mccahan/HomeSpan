@@ -316,7 +316,7 @@ class Span{
     return(*this);
   }
 
-  Span& setWebLogCSS(const char *css){WebLog->css="\n" + String(css) + "\n";return(*this);}
+  Span& setWebLogCSS(const char *css){if(WebLog)WebLog->css="\n" + String(css) + "\n";return(*this);}
 
   void autoPoll(uint32_t stackSize=8192, uint32_t priority=1, uint32_t cpu=0){     // start pollTask()
     xTaskCreateUniversal([](void *parms){for(;;)homeSpan.pollTask();}, "pollTask", stackSize, NULL, priority, &pollTaskHandle, cpu);
