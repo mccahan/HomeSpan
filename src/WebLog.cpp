@@ -68,9 +68,7 @@ void SpanWebLog::vLog(boolean sysMsg, const char *fmt, ...){
   vasprintf(&buf,fmt,ap);
   va_end(ap);  
 
-  if(sysMsg)
-    LOG0("%s\n",buf);
-  else
+  if(!sysMsg)
     LOG1("WEBLOG: %s\n",buf);
   
   if(maxEntries>0){

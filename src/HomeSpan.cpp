@@ -358,6 +358,7 @@ void Span::checkConnect(){
     if(WiFi.status()==WL_CONNECTED)
       return;
       
+    LOG0("\n*** WiFi Connection Lost!\n");
     WEBLOG_SYS("*** WiFi Connection Lost!");
     connected++;
     waitTime=60000;
@@ -378,7 +379,8 @@ void Span::checkConnect(){
       LOG0("\n*** Can't connect to %s.  You may type 'W <return>' to re-configure WiFi, or 'X <return>' to erase WiFi credentials.  Will try connecting again in 60 seconds.\n\n",network.wifiData.ssid);
       waitTime=60000;
     } else {    
-      WEBLOG_SYS("Trying to connect to %s.  Waiting %d sec...",network.wifiData.ssid,waitTime/1000);
+      LOG0("Trying to connect to %s.  Waiting %ld sec...\n",network.wifiData.ssid,waitTime/1000);
+      WEBLOG_SYS("Trying to connect to %s.  Waiting %ld sec...",network.wifiData.ssid,waitTime/1000);
       WiFi.begin(network.wifiData.ssid,network.wifiData.pwd);
     }
 
@@ -390,7 +392,7 @@ void Span::checkConnect(){
   resetStatus();  
   connected++;
 
-  LOG0("WiFi Connected!  IP Address = %s",WiFi.localIP().toString().c_str());
+  LOG0("\nWiFi Connected!  IP Address = %s\n",WiFi.localIP().toString().c_str());
   WEBLOG_SYS("WiFi Connected!  IP Address = %s",WiFi.localIP().toString().c_str());
 
   if(connected>1)                           // Do not initialize everything below if this is only a reconnect

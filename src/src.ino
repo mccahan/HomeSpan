@@ -63,6 +63,8 @@ void setup() {
 
 //homeSpan.setQRID("9Sam");
 
+  homeSpan.enableWebLog(20);
+
 //          .setStatusPin(13);
 //  homeSpan.setSerialInputDisable(true);
 //  homeSpan.enableOTA();
