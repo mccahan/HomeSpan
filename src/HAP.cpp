@@ -71,7 +71,7 @@ void HAPClient::init(){
     uint8_t verifyCode[384];
   } verifyData;
  
-  if(nvs_get_blob(srpNVS,"VERIFYDATA",NULL,&len)){                   // if verification code data does not exist in NVS
+  if(nvs_get_blob(srpNVS,"VERIFYDATA",NULL,&len)){                   // if verification code data does NOT exist in NVS
     LOG0("Generating SRP verification data for default Setup Code: %.3s-%.2s-%.3s\n",homeSpan.defaultSetupCode,homeSpan.defaultSetupCode+3,homeSpan.defaultSetupCode+5);
     SRP.createVerifyCode(homeSpan.defaultSetupCode,verifyData.verifyCode,verifyData.salt);         // create verification code from default Setup Code and random salt
     nvs_set_blob(srpNVS,"VERIFYDATA",&verifyData,sizeof(verifyData));                           // update data
@@ -410,7 +410,7 @@ int HAPClient::postPairSetupURL(){
         uint8_t verifyCode[384];
       } verifyData;
 
-      size_t len;
+      size_t len=sizeof(verifyData);
       nvs_get_blob(srpNVS,"VERIFYDATA",&verifyData,&len);               // retrieve stored verification code and salt
       
       mbedtls_mpi_read_binary(&SRP.s,verifyData.salt,16);               // load salt into s
