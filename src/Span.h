@@ -409,15 +409,9 @@ namespace Service {
 // Macro to define Span Characteristic structures based on name of HAP Characteristic, default value, and min/max value (not applicable for STRING or BOOL which default to min=0, max=1)
 
 #define CREATE_CHAR(TYPE,HAPCHAR,DEFVAL,MINVAL,MAXVAL) \
-  struct HAPCHAR : SpanCharacteristic { HAPCHAR(TYPE val=DEFVAL, boolean nvsStore=false) : SpanCharacteristic {&hapChars.HAPCHAR, nvsStore} { init(val,(TYPE)MINVAL,(TYPE)MAXVAL); } };
+  struct HAPCHAR : SpanCharacteristic { HAPCHAR(TYPE val=DEFVAL, boolean nvsStore=false) : SpanCharacteristic {&hapChars.HAPCHAR} { init(val,nvsStore,(TYPE)MINVAL,(TYPE)MAXVAL); } };
 
 namespace Characteristic {
-
-  struct Brightness2 : SpanChar<int> { 
-    Brightness2(int val=0, boolean nvsStore=false) : SpanChar {&hapChars.Brightness, val, nvsStore, 0, 100} { 
-      init(val,(int)0,(int)100);
-    }
-  };
 
   CREATE_CHAR(uint32_t,AccessoryFlags,1,1,1);
   CREATE_CHAR(uint8_t,Active,0,0,1);

@@ -532,12 +532,17 @@ class SpanCharacteristic{
 
   ~SpanCharacteristic();                                                  // destructor  
     
-  template <typename T, typename A=boolean, typename B=boolean> void init(T val, A min=0, B max=1){
+  template <typename T, typename A=boolean, typename B=boolean> void init(T val, boolean nvsStore, A min=0, B max=1){
 
     uvSet(value,val);
 
-    if(nvsKey){
+    if(nvsStore){
+      nvsKey=(char *)malloc(16);
+      uint16_t t;
+      sscanf(type,"%hx",&t);
+      sprintf(nvsKey,"%04X%08X%03X",t,aid,iid&0xFFF);
       size_t len;    
+
       if(format!=FORMAT::STRING && format!=FORMAT::DATA){
         if(!nvs_get_blob(homeSpan.charNVS,nvsKey,NULL,&len)){
           nvs_get_blob(homeSpan.charNVS,nvsKey,&value,&len);          
@@ -571,7 +576,7 @@ class SpanCharacteristic{
 
   public:
 
-  SpanCharacteristic(HapChar *hapChar, boolean nvsStore, boolean isCustom=false);           // constructor
+  SpanCharacteristic(HapChar *hapChar, boolean isCustom=false);           // constructor
 
   template <class T=int> T getVal(){
     return(uvGet<T>(value));
@@ -754,29 +759,6 @@ class SpanCharacteristic{
     strcpy(unit, c);
     return(this);
   }  
-
-};
-
-///////////////////////////////
-
-template <class CHAR_TYPE>
-class SpanChar : public SpanCharacteristic {
-
-  CHAR_TYPE value;
-  CHAR_TYPE newValue;
-  CHAR_TYPE min;
-  CHAR_TYPE max;
-  CHAR_TYPE step;
-
-public:
-
-  SpanChar(HapChar *hapChar, CHAR_TYPE value, boolean nvsStore, CHAR_TYPE min, CHAR_TYPE max, boolean isCustom=false) : SpanCharacteristic{hapChar, nvsStore, isCustom}{
-    this->value=value;
-    this->newValue=value;
-    this->min=min;
-    this->max=max;
-    this->step=0;
-  };
 
 };
 
