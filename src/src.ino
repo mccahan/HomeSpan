@@ -31,11 +31,14 @@ struct LED_Service : Service::LightBulb {
 
   int ledPin;
   SpanCharacteristic *power;
+  SpanCharacteristic *level;
   
   LED_Service(int ledPin) : Service::LightBulb(){
     power=new Characteristic::On();
+    level=new Characteristic::Brightness2(20,true);
     this->ledPin=ledPin;
-    pinMode(ledPin,OUTPUT);    
+    pinMode(ledPin,OUTPUT);   
+    level->setVal(level->getVal()+1); 
   }
 
   boolean update(){            

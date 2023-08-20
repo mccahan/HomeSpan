@@ -1710,7 +1710,7 @@ int SpanService::sprintfAttributes(char *cBuf, int flags){
 //    SpanCharacteristic     //
 ///////////////////////////////
 
-SpanCharacteristic::SpanCharacteristic(HapChar *hapChar, boolean isCustom){
+SpanCharacteristic::SpanCharacteristic(HapChar *hapChar, boolean nvsStore, boolean isCustom){
 
   type=hapChar->type;
   perms=hapChar->perms;
@@ -1730,6 +1730,13 @@ SpanCharacteristic::SpanCharacteristic(HapChar *hapChar, boolean isCustom){
   iid=++(homeSpan.Accessories.back()->iidCount);
   service=homeSpan.Accessories.back()->Services.back();
   aid=homeSpan.Accessories.back()->aid;
+
+  if(nvsStore){
+    nvsKey=(char *)malloc(16);
+    uint16_t t;
+    sscanf(type,"%hx",&t);
+    sprintf(nvsKey,"%04X%08X%03X",t,aid,iid&0xFFF);
+  }  
 }
 
 ///////////////////////////////
