@@ -46,11 +46,15 @@ void HAPClient::init(){
   nvs_open("SRP",NVS_READWRITE,&srpNVS);        // open SRP data namespace in NVS 
   nvs_open("HAP",NVS_READWRITE,&hapNVS);        // open HAP data namespace in NVS
 
-  if(strlen(homeSpan.spanOTA.otaPwd)==0){                                 // OTA password has not been specified in sketch
-    if(!nvs_get_str(homeSpan.otaNVS,"OTADATA",NULL,&len)){                // if found OTA data in NVS...
-    nvs_get_str(homeSpan.otaNVS,"OTADATA",homeSpan.spanOTA.otaPwd,&len);  // ...retrieve data.
-    } else {                                                              // otherwise...
-    homeSpan.spanOTA.setPassword(DEFAULT_OTA_PASSWORD);                   // ...use default password
+//  MOVE THIS INTO SPANOTA!
+  
+  if(spanOTA){
+    if(strlen(spanOTA->otaPwd)==0){                                 // OTA password has not been specified in sketch
+      if(!nvs_get_str(homeSpan.otaNVS,"OTADATA",NULL,&len)){                // if found OTA data in NVS...
+      nvs_get_str(homeSpan.otaNVS,"OTADATA",spanOTA->otaPwd,&len);  // ...retrieve data.
+      } else {                                                              // otherwise...
+      spanOTA->setPassword(DEFAULT_OTA_PASSWORD);                           // ...use default password
+      }
     }
   }
 

@@ -42,7 +42,6 @@
 #include <list>
 
 #include <nvs.h>
-#include <ArduinoOTA.h>
 #include <mbedtls/base64.h>
 
 #include "extras/Blinker.h"
@@ -55,6 +54,7 @@
 #include "TempBuf.h"
 #include "WebLog.h"
 #include "SpanPoint.h"
+#include "SpanOTA.h"
 
 using std::vector;
 using std::unordered_map;
@@ -120,13 +120,6 @@ extern Span homeSpan;
 // INTERNAL HOMESPAN STRUCTURES - NOT FOR USER ACCESS //
 ////////////////////////////////////////////////////////
 
-struct SpanPartition{
-  char magicCookie[32];
-  uint8_t reserved[224];
-};
-
-///////////////////////////////
-
 struct SpanConfig{                         
   int configNumber=0;                         // configuration number - broadcast as Bonjour "c#" (computed automatically)
   uint8_t hashCode[48]={0};                   // SHA-384 hash of Span Database stored as a form of unique "signature" to know when to update the config number upon changes
@@ -141,25 +134,6 @@ struct SpanBuf{                               // temporary storage buffer for us
   char *ev=NULL;                              // updated event notification flag (optional, though either at least 'val' or 'ev' must be specified)
   StatusCode status;                          // return status (HAP Table 6-11)
   SpanCharacteristic *characteristic=NULL;    // Characteristic to update (NULL if not found)
-};
-
-///////////////////////////////
-
-struct SpanOTA{                               // manages OTA process
-  
-  char otaPwd[33]="";                         // MD5 Hash of OTA password, represented as a string of hexidecimal characters
-
-  static boolean enabled;                     // enables OTA - default if not enabled
-  static boolean auth;                        // indicates whether OTA password is required
-  static int otaPercent;
-  static boolean safeLoad;                    // indicates whether OTA update should reject any application update that is not another HomeSpan sketch
-  
-  int init(boolean auth, boolean safeLoad, const char *pwd);
-  int setPassword(const char *pwd);
-  static void start();
-  static void end();
-  static void progress(uint32_t progress, uint32_t total);
-  static void error(ota_error_t err);
 };
 
 //////////////////////////////////////
@@ -217,7 +191,6 @@ class Span{
   Network network;                                  // configures WiFi and Setup Code via either serial monitor or temporary Access Point
   TaskHandle_t pollTaskHandle = NULL;               // optional task handle to use for poll() function
     
-  SpanOTA spanOTA;                                  // manages OTA process
   SpanConfig hapConfig;                             // track configuration changes to the HAP Accessory database; used to increment the configuration number (c#) when changes found
   vector<SpanAccessory *> Accessories;              // vector of pointers to all Accessories
   vector<SpanService *> Loops;                      // vector of pointer to all Services that have over-ridden loop() methods
@@ -299,9 +272,9 @@ class Span{
   
   Span& setPairingCode(const char *s){sprintf(pairingCodeCommand,"S %9s",s);return(*this);}    // sets the Pairing Code - use is NOT recommended.  Use 'S' from CLI instead
   void deleteStoredValues(){processSerialCommand("V");}                                        // deletes stored Characteristic values from NVS  
-
-  int enableOTA(boolean auth=true, boolean safeLoad=true){return(spanOTA.init(auth, safeLoad, NULL));}   // enables Over-the-Air updates, with (auth=true) or without (auth=false) authorization password  
-  int enableOTA(const char *pwd, boolean safeLoad=true){return(spanOTA.init(true, safeLoad, pwd));}      // enables Over-the-Air updates, with custom authorization password (overrides any password stored with the 'O' command)
+  
+  int enableOTA(boolean auth=true, boolean safeLoad=true){spanOTA=new SpanOTA();return(spanOTA->init(auth, safeLoad, NULL));}   // enables Over-the-Air updates, with (auth=true) or without (auth=false) authorization password  
+  int enableOTA(const char *pwd, boolean safeLoad=true){spanOTA=new SpanOTA();return(spanOTA->init(true, safeLoad, pwd));}      // enables Over-the-Air updates, with custom authorization password (overrides any password stored with the 'O' command)
 
   Span& enableWebLog(uint16_t maxEntries=0, const char *serv=NULL, const char *tz="UTC", const char *url=DEFAULT_WEBLOG_URL){     // enable Web Logging
     if(!WebLog){

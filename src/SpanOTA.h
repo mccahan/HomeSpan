@@ -24,65 +24,35 @@
  *  SOFTWARE.
  *  
  ********************************************************************************/
+ 
+#pragma once
 
-#include "HomeSpan.h"
+#include <Arduino.h>
+#include <ArduinoOTA.h>
 
-struct LED_Service : Service::LightBulb {
-
-  int ledPin;
-  SpanCharacteristic *power;
+struct SpanOTA{                               // manages OTA process
   
-  LED_Service(int ledPin) : Service::LightBulb(){
-    power=new Characteristic::On();
-    this->ledPin=ledPin;
-    pinMode(ledPin,OUTPUT);    
-  }
+  char otaPwd[33]="";                         // MD5 Hash of OTA password, represented as a string of hexadecimal characters
 
-  boolean update(){            
-    digitalWrite(ledPin,power->getNewVal());   
-    return(true);  
-  }
-
+  static boolean auth;                        // indicates whether OTA password is required
+  static int otaPercent;
+  static boolean safeLoad;                    // indicates whether OTA update should reject any application update that is not another HomeSpan sketch
+  
+  int init(boolean auth, boolean safeLoad, const char *pwd);
+  int setPassword(const char *pwd);
+  static void start();
+  static void end();
+  static void progress(uint32_t progress, uint32_t total);
+  static void error(ota_error_t err);
 };
-      
-//////////////////////////////////////
 
-void setup() {
-  
-  Serial.begin(115200);
-
-//  homeSpan.setHostNameSuffix("");
-
-//  homeSpan.setControlPin(21);
-  homeSpan.enableOTA();
-  
-  homeSpan.setLogLevel(2);
-//  homeSpan.reserveSocketConnections(12);
-  
-//  homeSpan.setApSSID("HS_Setup");
-//  homeSpan.setApPassword("");
-
-//homeSpan.setQRID("9Sam");
-
-//  homeSpan.enableWebLog(20);
-
-//          .setStatusPin(13);
-//  homeSpan.setSerialInputDisable(true);
-//  homeSpan.enableOTA();
-
-
-  homeSpan.begin(Category::Lighting,"HomeSpan LED");
-  
-  new SpanAccessory();   
-    new Service::AccessoryInformation(); 
-      new Characteristic::Identify();
-    new LED_Service(13);  
-}
+struct SpanPartition{
+  char magicCookie[32];
+  uint8_t reserved[224];
+};
 
 //////////////////////////////////////
 
-void loop(){ 
-  homeSpan.poll();
-}
+extern SpanOTA *spanOTA;
 
 //////////////////////////////////////
