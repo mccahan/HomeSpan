@@ -29,21 +29,26 @@
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
+#include <nvs.h>
 
 struct SpanOTA{                               // manages OTA process
   
   char otaPwd[33]="";                         // MD5 Hash of OTA password, represented as a string of hexadecimal characters
+  nvs_handle otaNVS;                          // storage for OTA data
 
   static boolean auth;                        // indicates whether OTA password is required
   static int otaPercent;
   static boolean safeLoad;                    // indicates whether OTA update should reject any application update that is not another HomeSpan sketch
   
-  int init(boolean auth, boolean safeLoad, const char *pwd);
-  int setPassword(const char *pwd);
+  SpanOTA(boolean auth, boolean safeLoad, const char *pwd);
+  int setPassword(const char *pwd, boolean save=false);
+  void init(const char *hostname);
+  void erase();
   static void start();
   static void end();
   static void progress(uint32_t progress, uint32_t total);
   static void error(ota_error_t err);
+  static void handle(){ArduinoOTA.handle();}
 };
 
 struct SpanPartition{

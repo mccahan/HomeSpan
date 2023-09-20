@@ -73,10 +73,10 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
 
   hapServer=new WiFiServer(tcpPortNum);
 
-  nvs_flash_init();                             // initialize non-volatile-storage partition in flash  
-  nvs_open("CHAR",NVS_READWRITE,&charNVS);      // open Characteristic data namespace in NVS
-  nvs_open("WIFI",NVS_READWRITE,&wifiNVS);      // open WIFI data namespace in NVS
-  nvs_open("OTA",NVS_READWRITE,&otaNVS);        // open OTA data namespace in NVS
+  nvs_flash_init();                                // initialize non-volatile-storage partition in flash  
+  nvs_open("CHAR",NVS_READWRITE,&charNVS);         // open Characteristic data namespace in NVS
+  nvs_open("WIFI",NVS_READWRITE,&wifiNVS);         // open WIFI data namespace in NVS
+  nvs_open("HSDATA",NVS_READWRITE,&homeSpanNVS);   // open HomeSpan data namespace in NVS
 
   size_t len;
 
@@ -139,9 +139,9 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
   LOG0("\n\nDevice Name:      %s\n\n",displayName);
 
   uint8_t otaRequired=0;
-  nvs_get_u8(otaNVS,"OTA_REQUIRED",&otaRequired);
-  nvs_set_u8(otaNVS,"OTA_REQUIRED",0);
-  nvs_commit(otaNVS);
+  nvs_get_u8(homeSpanNVS,"OTA_REQUIRED",&otaRequired);
+  nvs_set_u8(homeSpanNVS,"OTA_REQUIRED",0);
+  nvs_commit(homeSpanNVS);
   if(otaRequired && !spanOTA){
     LOG0("\n\n*** OTA SAFE MODE ALERT:  OTA REQUIRED BUT NOT ENABLED.  ROLLING BACK TO PREVIOUS APPLICATION ***\n\n");
     delay(100);
@@ -155,7 +155,7 @@ void Span::begin(Category catID, const char *displayName, const char *hostNameBa
 void Span::poll() {
 
   if(pollTaskHandle){
-    LOG0("\n** FATAL ERROR: Do not call homeSpan.poll() directly if homeSpan.start() is used!\n** PROGRAM HALTED **\n\n");
+    LOG0("\n*** FATAL ERROR: Do not call homeSpan.poll() directly if homeSpan.start() is used!\n*** PROGRAM HALTED ***\n\n");
     vTaskDelete(pollTaskHandle);
     while(1);    
   }
@@ -168,7 +168,7 @@ void Span::poll() {
 void Span::pollTask() {
 
   if(!strlen(category)){
-    LOG0("\n** FATAL ERROR: Cannot start homeSpan polling without an initial call to homeSpan.begin()!\n** PROGRAM HALTED **\n\n");
+    LOG0("\n*** FATAL ERROR: Cannot start homeSpan polling without an initial call to homeSpan.begin()!\n*** PROGRAM HALTED ***\n\n");
     while(1);    
   }
 
@@ -264,7 +264,9 @@ void Span::pollTask() {
   HAPClient::checkTimedWrites();
 
   if(spanOTA)
-    ArduinoOTA.handle();
+    spanOTA->handle();
+
+//    ArduinoOTA.handle();
 
   if(controlButton && controlButton->primed())
     STATUS_UPDATE(start(LED_ALERT),HS_ENTERING_CONFIG_MODE)
@@ -467,14 +469,16 @@ void Span::checkConnect(){
   mdns_service_txt_item_set("_hap","_tcp","sh",setupHash);            // Step 4: broadcast the resulting Setup Hash
 
   if(spanOTA){
-    ArduinoOTA.setHostname(hostName);
+    spanOTA->init(hostName);
 
-    if(spanOTA->auth)
-      ArduinoOTA.setPasswordHash(spanOTA->otaPwd);
-
-    ArduinoOTA.onStart(spanOTA->start).onEnd(spanOTA->end).onProgress(spanOTA->progress).onError(spanOTA->error);  
-    
-    ArduinoOTA.begin();
+//    ArduinoOTA.setHostname(hostName);
+//
+//    if(spanOTA->auth)
+//      ArduinoOTA.setPasswordHash(spanOTA->otaPwd);
+//
+//    ArduinoOTA.onStart(spanOTA->start).onEnd(spanOTA->end).onProgress(spanOTA->progress).onError(spanOTA->error);  
+//    
+//    ArduinoOTA.begin();
     LOG0("Starting OTA Server:    %s at %s\n",displayName,WiFi.localIP().toString().c_str());
     LOG0("Authorization Password: %s",spanOTA->auth?"Enabled\n\n":"DISABLED!\n\n");
   }
@@ -583,6 +587,7 @@ void Span::processSerialCommand(const char *c){
     break;
 
     case 'Q': {
+      
       char tBuf[5];
       const char *s=c+1+strspn(c+1," ");
       sscanf(s," %4[0-9A-Za-z]",tBuf);
@@ -599,31 +604,11 @@ void Span::processSerialCommand(const char *c){
     break;
     
     case 'O': {
-
-      char textPwd[34]="\0";
       
-      LOG0("\n>>> New OTA Password, or <return> to cancel request: ");
-      readSerial(textPwd,33);
-      
-      if(strlen(textPwd)==0){
-        LOG0("(cancelled)\n\n");
-        return;
-      }
-
-      if(strlen(textPwd)==33){
-        LOG0("\n*** Sorry, 32 character limit - request cancelled\n\n");
-        return;
-      }
-      
-      LOG0("%s\n",mask(textPwd,2).c_str());
-      spanOTA->setPassword(textPwd);
-      nvs_set_str(otaNVS,"OTADATA",spanOTA->otaPwd);                 // update data
-      nvs_commit(otaNVS);          
-      
-      LOG0("... Accepted! Password change will take effect after next restart.\n");
-      if(!spanOTA)
-        LOG0("... Note: OTA has not been enabled in this sketch.\n");
-      LOG0("\n");
+      if(spanOTA)
+        spanOTA->setPassword(c+1,true);
+      else
+        LOG0("\n*** WARNING: Cannot change OTA password to '%s'. OTA has not been enabled.\n\n",c+1);
     }
     break;
 
@@ -767,8 +752,10 @@ void Span::processSerialCommand(const char *c){
       nvs_commit(wifiNVS);   
       nvs_erase_all(charNVS);
       nvs_commit(charNVS);
-      nvs_erase_all(otaNVS);
-      nvs_commit(otaNVS);
+      nvs_erase_all(homeSpanNVS);
+      nvs_commit(homeSpanNVS);
+      if(spanOTA)
+        spanOTA->erase();
       WiFi.begin("none");  
       LOG0("\n*** FACTORY RESET!  Restarting...\n\n");
       reboot();
@@ -1063,7 +1050,7 @@ void Span::processSerialCommand(const char *c){
       LOG0("  X - delete WiFi Credentials and restart\n");      
       LOG0("  S <code> - change the HomeKit Pairing Setup Code to <code>\n");
       LOG0("  Q <id> - change the HomeKit Setup ID for QR Codes to <id>\n");
-      LOG0("  O - change the OTA password\n");
+      LOG0("  O <pwd> - change the OTA password to <pwd>\n");
       LOG0("  A - start the HomeSpan Setup Access Point\n");
       LOG0("\n");      
       LOG0("  V - delete value settings for all saved Characteristics\n");
@@ -1544,7 +1531,7 @@ SpanAccessory::SpanAccessory(uint32_t aid){
   if(!homeSpan.Accessories.empty()){
 
     if(homeSpan.Accessories.size()==HAPClient::MAX_ACCESSORIES){
-      LOG0("\n\n*** FATAL ERROR: Can't create more than %d Accessories.  Program Halting.\n\n",HAPClient::MAX_ACCESSORIES);
+      LOG0("\n*** FATAL ERROR: Can't create more than %d Accessories.\n*** PROGRAM HALTED ***\n\n",HAPClient::MAX_ACCESSORIES);
       while(1);      
     }
     
@@ -1601,8 +1588,7 @@ int SpanAccessory::sprintfAttributes(char *cBuf, int flags){
 SpanService::SpanService(const char *type, const char *hapName, boolean isCustom){
 
   if(homeSpan.Accessories.empty()){
-    LOG0("\nFATAL ERROR!  Can't create new Service '%s' without a defined Accessory ***\n",hapName);
-    LOG0("\n=== PROGRAM HALTED ===");
+    LOG0("\n*** FATAL ERROR!  Can't create new Service '%s' without a defined Accessory.\n*** PROGRAM HALTED ***\n\n",hapName);
     while(1);
   }
 
@@ -1719,8 +1705,7 @@ SpanCharacteristic::SpanCharacteristic(HapChar *hapChar, boolean isCustom){
   this->hapChar=hapChar;
 
   if(homeSpan.Accessories.empty() || homeSpan.Accessories.back()->Services.empty()){
-    LOG0("\nFATAL ERROR!  Can't create new Characteristic '%s' without a defined Service ***\n",hapName);
-    LOG0("\n=== PROGRAM HALTED ===");
+    LOG0("\n*** FATAL ERROR!  Can't create new Characteristic '%s' without a defined Service.\n*** PROGRAM HALTED ***\n\n",hapName);
     while(1);
   }
 
@@ -1990,11 +1975,9 @@ SpanButton::SpanButton(int pin, uint16_t longTime, uint16_t singleTime, uint16_t
 
   if(homeSpan.Accessories.empty() || homeSpan.Accessories.back()->Services.empty()){
     if(buttonType==HS_BUTTON)
-      LOG0("\nFATAL ERROR!  Can't create new SpanButton(%d,%u,%u,%u) without a defined Service ***\n",pin,longTime,singleTime,doubleTime);
+      LOG0("\n*** FATAL ERROR!  Can't create new SpanButton(%d,%u,%u,%u) without a defined Service.\n*** PROGRAM HALTED ***\n\n",pin,longTime,singleTime,doubleTime);
     else
-      LOG0("\nFATAL ERROR!  Can't create new SpanToggle(%d,%u) without a defined Service ***\n",pin,longTime);
-      
-    LOG0("\n=== PROGRAM HALTED ===");
+      LOG0("\n*** FATAL ERROR!  Can't create new SpanToggle(%d,%u) without a defined Service.\n*** PROGRAM HALTED ***\n\n",pin,longTime);      
     while(1);
   }
 

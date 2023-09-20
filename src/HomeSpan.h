@@ -163,7 +163,7 @@ class Span{
   const char *sketchVersion="n/a";              // version of the sketch
   nvs_handle charNVS;                           // handle for non-volatile-storage of Characteristics data
   nvs_handle wifiNVS=0;                         // handle for non-volatile-storage of WiFi data
-  nvs_handle otaNVS;                            // handle for non-volatile storaget of OTA data
+  nvs_handle homeSpanNVS;                       // handle for non-volatile storage of general HomeSpan data
   char pairingCodeCommand[12]="";               // user-specified Pairing Code - only needed if Pairing Setup Code is specified in sketch using setPairingCode()
   boolean newCode;                              // flag indicating new application code has been loaded (based on keeping track of app SHA256)
   
@@ -273,8 +273,8 @@ class Span{
   Span& setPairingCode(const char *s){sprintf(pairingCodeCommand,"S %9s",s);return(*this);}    // sets the Pairing Code - use is NOT recommended.  Use 'S' from CLI instead
   void deleteStoredValues(){processSerialCommand("V");}                                        // deletes stored Characteristic values from NVS  
   
-  int enableOTA(boolean auth=true, boolean safeLoad=true){spanOTA=new SpanOTA();return(spanOTA->init(auth, safeLoad, NULL));}   // enables Over-the-Air updates, with (auth=true) or without (auth=false) authorization password  
-  int enableOTA(const char *pwd, boolean safeLoad=true){spanOTA=new SpanOTA();return(spanOTA->init(true, safeLoad, pwd));}      // enables Over-the-Air updates, with custom authorization password (overrides any password stored with the 'O' command)
+  Span& enableOTA(boolean auth=true, boolean safeLoad=true){spanOTA=new SpanOTA(auth, safeLoad, NULL);return(*this);}   // enables Over-the-Air updates, with (auth=true) or without (auth=false) authorization password  
+  Span& enableOTA(const char *pwd, boolean safeLoad=true){spanOTA=new SpanOTA(true, safeLoad, pwd);return(*this);}      // enables Over-the-Air updates, with custom authorization password (overrides any password stored with the 'O' command)
 
   Span& enableWebLog(uint16_t maxEntries=0, const char *serv=NULL, const char *tz="UTC", const char *url=DEFAULT_WEBLOG_URL){     // enable Web Logging
     if(!WebLog){

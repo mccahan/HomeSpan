@@ -54,9 +54,9 @@ void setup() {
 //  homeSpan.setHostNameSuffix("");
 
 //  homeSpan.setControlPin(21);
-  homeSpan.enableOTA();
+//  homeSpan.enableOTA();
   
-  homeSpan.setLogLevel(2);
+  homeSpan.setLogLevel(2).enableOTA("glop");
 //  homeSpan.reserveSocketConnections(12);
   
 //  homeSpan.setApSSID("HS_Setup");

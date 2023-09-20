@@ -46,9 +46,7 @@ class TempBuffer {
     nBytes=nElements*sizeof(bufType);
     buf=(bufType *)malloc(nBytes);
     if(buf==NULL){
-      Serial.print("\n\n*** FATAL ERROR: Requested allocation of ");
-      Serial.print(nBytes);
-      Serial.print(" bytes failed.  Program Halting.\n\n");
+      Serial.printf("\n*** FATAL ERROR: Requested allocation of %d bytes failed.\n*** PROGRAM HALTED ***\n\n",nBytes);
       while(1);
     }
    }

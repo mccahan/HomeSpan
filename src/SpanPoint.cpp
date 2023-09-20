@@ -39,14 +39,12 @@
 SpanPoint::SpanPoint(const char *macAddress, int sendSize, int receiveSize, int queueDepth, boolean useAPaddress){
 
   if(sscanf(macAddress,"%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",peerInfo.peer_addr,peerInfo.peer_addr+1,peerInfo.peer_addr+2,peerInfo.peer_addr+3,peerInfo.peer_addr+4,peerInfo.peer_addr+5)!=6){
-    LOG0("\nFATAL ERROR!  Can't create new SpanPoint(\"%s\") - Invalid MAC Address ***\n",macAddress);
-    LOG0("\n=== PROGRAM HALTED ===");
+    LOG0("\n*** FATAL ERROR!  Can't create new SpanPoint(\"%s\") - Invalid MAC Address.\n*** PROGRAM HALTED ***\n\n",macAddress);
     while(1);
   }
 
   if(sendSize<0 || sendSize>200 || receiveSize<0 || receiveSize>200 || queueDepth<1 || (sendSize==0 && receiveSize==0)){
-    LOG0("\nFATAL ERROR!  Can't create new SpanPoint(\"%s\",%d,%d,%d) - one or more invalid parameters ***\n",macAddress,sendSize,receiveSize,queueDepth);
-    LOG0("\n=== PROGRAM HALTED ===");
+    LOG0("\n*** FATAL ERROR!  Can't create new SpanPoint(\"%s\",%d,%d,%d) - one or more invalid parameters.\n*** PROGRAM HALTED ***\n\n",macAddress,sendSize,receiveSize,queueDepth);
     while(1);
   }
 
@@ -127,8 +125,7 @@ void SpanPoint::setChannelMask(uint16_t mask){
     channel=(channelMask & (1<<i))?i:0;
 
   if(channel==0){
-    LOG0("\nFATAL ERROR!  SpanPoint::setChannelMask(0x%04X) - mask must allow for at least one channel ***\n",mask);
-    LOG0("\n=== PROGRAM HALTED ===");
+    LOG0("\n*** FATAL ERROR!  SpanPoint::setChannelMask(0x%04X) - mask must allow for at least one channel.\n*** PROGRAM HALTED ***\n\n",mask);
     while(1);
   }
 

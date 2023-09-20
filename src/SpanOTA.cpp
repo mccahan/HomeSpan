@@ -25,6 +25,8 @@
  *  
  ********************************************************************************/
 
+#include <nvs_flash.h>
+
 #include "Settings.h"
 #include "SpanOTA.h"
 #include "HomeSpan.h"
@@ -36,23 +38,45 @@ const __attribute__((section(".rodata_custom_desc"))) SpanPartition spanPartitio
 /////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
-int SpanOTA::init(boolean _auth, boolean _safeLoad, const char *pwd){
+SpanOTA::SpanOTA(boolean _auth, boolean _safeLoad, const char *pwd){
   if(esp_ota_get_running_partition()==esp_ota_get_next_update_partition(NULL)){
-    LOG0("\n*** WARNING: Can't start OTA Server - Partition table used to compile this sketch is not configured for OTA.\n\n");
-    return(-1);     
+    LOG0("\n*** FATAL ERROR: Can't start OTA Server - Partition table used to compile this sketch is not configured for OTA.\n*** PROGRAM HALTED ***\n\n");
+    while(1);     
   }
   
   safeLoad=_safeLoad;
   auth=_auth;
   homeSpan.reserveSocketConnections(1);
-  if(pwd==NULL)
-    return(0);
-  return(setPassword(pwd));
+
+  nvs_flash_init();                             // initialize non-volatile-storage partition in flash  
+  nvs_open("OTA",NVS_READWRITE,&otaNVS);        // open OTA data namespace in NVS
+
+  if(setPassword(pwd)!=0){                      // if pwd is not set or is invalid, use stored hash
+    size_t len=sizeof(otaPwd);
+    if(nvs_get_str(otaNVS,"OTADATA",otaPwd,&len)!=ESP_OK)         // read saved hash of OTA password; if not found use default
+      setPassword(DEFAULT_OTA_PASSWORD);
+  }     
 }
 
 ///////////////////////////////
 
-int SpanOTA::setPassword(const char *pwd){
+void SpanOTA::init(const char *hostname){
+
+  ArduinoOTA.setHostname(hostname);
+
+  if(spanOTA->auth)
+    ArduinoOTA.setPasswordHash(spanOTA->otaPwd);
+    
+  ArduinoOTA.onStart(spanOTA->start).onEnd(spanOTA->end).onProgress(spanOTA->progress).onError(spanOTA->error);  
+  ArduinoOTA.begin();  
+}
+
+///////////////////////////////
+
+int SpanOTA::setPassword(const char *pwd, boolean save){
+  if(pwd==NULL)
+    return(-1);
+    
   if(strlen(pwd)<1 || strlen(pwd)>32){
     LOG0("\n*** WARNING: Cannot change OTA password to '%s'. Password length must be between 1 and 32 characters.\n\n",pwd);
     return(-1);
@@ -62,7 +86,14 @@ int SpanOTA::setPassword(const char *pwd){
   otaPwdHash.begin();
   otaPwdHash.add(pwd);
   otaPwdHash.calculate();
-  otaPwdHash.getChars(spanOTA->otaPwd);  
+  otaPwdHash.getChars(otaPwd);
+
+  if(save){
+    nvs_set_str(otaNVS,"OTADATA",otaPwd);
+    nvs_commit(otaNVS);            
+    LOG0("\nOTA password changed to '%s'. Will take effect upon next reboot.\n\n",pwd);
+  }
+  
   return(0);
 }
 
@@ -78,8 +109,8 @@ void SpanOTA::start(){
 ///////////////////////////////
 
 void SpanOTA::end(){
-  nvs_set_u8(homeSpan.otaNVS,"OTA_REQUIRED",safeLoad);
-  nvs_commit(homeSpan.otaNVS);
+  nvs_set_u8(homeSpan.homeSpanNVS,"OTA_REQUIRED",safeLoad);
+  nvs_commit(homeSpan.homeSpanNVS);
   LOG0(" DONE!  Rebooting...\n");
   homeSpan.reboot();
 }
@@ -111,6 +142,13 @@ void SpanOTA::error(ota_error_t err){
     else if (err == OTA_CONNECT_ERROR) LOG0("Connect Failed\n\n");
     else if (err == OTA_RECEIVE_ERROR) LOG0("Receive Failed\n\n");
     else if (err == OTA_END_ERROR) LOG0("End Failed\n\n");
+}
+
+///////////////////////////////
+
+void SpanOTA::erase(){
+  nvs_erase_all(otaNVS);
+  nvs_commit(otaNVS);
 }
 
 ///////////////////////////////
