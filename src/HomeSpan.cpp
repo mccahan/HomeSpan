@@ -221,7 +221,12 @@ void Span::pollTask() {
   
   if(!serialInputDisabled && Serial.available()){
     readSerial(cBuf,64);
-    processSerialCommand(cBuf);
+
+    if(strncmp(cBuf, "IMPROV", 6) == 0) { // check for an Improv-Serial command, see https://www.improv-wifi.com/serial/
+      processImprovCommand(cBuf, this);
+    } else {
+      processSerialCommand(cBuf);
+    }
   }
 
   WiFiClient newClient;
@@ -1150,6 +1155,12 @@ void Span::processSerialCommand(const char *c){
 
 void Span::getWebLog(void (*f)(const char *, void *), void *user_data){
   HAPClient::getStatusURL(NULL,f,user_data);
+}
+
+///////////////////////////////
+
+const char* Span::getDisplayName(){
+  return(this->displayName);
 }
 
 ///////////////////////////////

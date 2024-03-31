@@ -271,7 +271,6 @@ class Span{
   void checkConnect();                          // check WiFi connection; connect if needed
   void commandMode();                           // allows user to control and reset HomeSpan settings with the control button
   void resetStatus();                           // resets statusLED and calls statusCallback based on current HomeSpan status
-  void reboot();                                // reboots device
 
   void printfAttributes(int flags=GET_VALUE|GET_META|GET_PERMS|GET_TYPE|GET_DESC);   // writes Attributes JSON database to hapOut stream
   
@@ -295,9 +294,11 @@ class Span{
              const char *displayName=DEFAULT_DISPLAY_NAME,
              const char *hostNameBase=DEFAULT_HOST_NAME,
              const char *modelName=DEFAULT_MODEL_NAME);        
-             
+
+  void reboot();                                // reboots device
   void poll();                                  // calls pollTask() with some error checking
   void processSerialCommand(const char *c);     // process command 'c' (typically from readSerial, though can be called with any 'c')
+  void processImprovCommand(const char *c, Span* span);     // process Improv-Serial command 'c'
   
   boolean updateDatabase(boolean updateMDNS=true);   // updates HAP Configuration Number and Loop vector; if updateMDNS=true and config number has changed, re-broadcasts MDNS 'c#' record; returns true if config number changed
   boolean deleteAccessory(uint32_t aid);             // deletes Accessory with matching aid; returns true if found, else returns false 
@@ -363,6 +364,8 @@ class Span{
   Span& setWebLogCSS(const char *css){webLog.css="\n" + String(css) + "\n";return(*this);}
   Span& setWebLogCallback(void (*f)(String &)){weblogCallback=f;return(*this);} 
   void getWebLog(void (*f)(const char *, void *), void *);
+
+  const char* getDisplayName();
 
   Span& setVerboseWifiReconnect(bool verbose=true){verboseWifiReconnect=verbose;return(*this);}
 
